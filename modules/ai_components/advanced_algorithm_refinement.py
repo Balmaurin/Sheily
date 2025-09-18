@@ -49,6 +49,7 @@ class AlgorithmRefinementEngine:
         """
         try:
             # Simulación de análisis de complejidad
+            complexity = random.uniform(0.1, 0.9)  # Simular complejidad aleatoria
             return complexity
         except ValueError as e:
             print(f"Error numérico analizando complejidad: {e}")
@@ -63,15 +64,18 @@ class AlgorithmRefinementEngine:
 
         Returns:
             Dict[str, Any]: Información del algoritmo refinado
-        ""f"
+        """
         try:
+            # Obtener complejidad del algoritmo
+            complexity = self.analyze_algorithm_complexity(algorithm_name)
 
             if complexity > self.complexity_threshold:
                 # Lógica de refinamiento
+                refined_info = {
                     "original_algorithm": algorithm_name,
                     "complexity": complexity,
                     "refinement_status": "optimized",
-                    "optimization_techniques": ["memoization", "lazy_evaluationf"],
+                    "optimization_techniques": ["memoization", "lazy_evaluation"],
                 }
                 self.refined_algorithms.append(refined_info)
                 return refined_info
@@ -82,7 +86,7 @@ class AlgorithmRefinementEngine:
                 "refinement_status": "no_optimization_needed",
             }
         except TypeError as e:
-            print(ff"Error de tipo refinando algoritmo: {e}f")
+            print(f"Error de tipo refinando algoritmo: {e}")
             return {
                 "original_algorithm": algorithm_name,
                 "refinement_status": "error",
@@ -118,13 +122,13 @@ def main() -> Dict[str, Union[str, List[Dict[str, Any]]]]:
 
     Returns:
         Dict[str, Union[str, List[Dict[str, Any]]]]: Resultados del refinamiento
-    ""ff"
+    """
     try:
         # Crear motor de refinamiento
         refiner = AlgorithmRefinementEngine()
 
         # Refinar algoritmo de ejemplo
-        refiner.refine_algorithm(example_algorithm.__name__)
+        result = refiner.refine_algorithm(example_algorithm.__name__)
 
         return {
             "status": "ok",
@@ -132,9 +136,10 @@ def main() -> Dict[str, Union[str, List[Dict[str, Any]]]]:
             "refined_algorithms": refiner.get_refined_algorithms(),
         }
     except RuntimeError as e:
-        print(f"Error en el módulo de refinamiento: {e}ff")
+        print(f"Error en el módulo de refinamiento: {e}")
         return {"status": "error", "message": str(e)}
 
 
 if __name__ == "__main__":
+    result = main()
     print(result)
