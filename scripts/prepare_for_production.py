@@ -85,14 +85,14 @@ class ProductionPreparer:
     def verify_llm_models(self):
         """Verifica los modelos de LLM y su disponibilidad"""
         print("🤖 Verificando modelos de LLM...")
-        
-            # Verificar modelos T5
-    t5_models = [
-        "t5-large"
-    ]
-        
+
+        # Verificar modelos T5
+        t5_models = [
+            "t5-large"
+        ]
+
         all_ok = True
-        
+
         try:
             from transformers import AutoTokenizer, AutoModel
             
