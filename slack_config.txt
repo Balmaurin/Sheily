@@ -11,4 +11,4 @@
 # https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
 #
 # TU URL REAL (descomenta y reemplaza):
-#SLACK_WEBHOOK_URL=https://hooks.slack.com/services/TU/WEBHOOK/AQUI
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
