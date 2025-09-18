@@ -224,53 +224,55 @@ def import_datasets_to_branches():
     # Directorio de datasets
 
     if not datasets_dir.exists():
-    print("Datasets directory not found")
+        print("Datasets directory not found")
         return
 
     total_imported = 0
 
     # Importar datasets existentes
     for json_file in datasets_dir.glob("*.json"):
-    if json_file.name != "branches":  # Excluir directorio
-    print(fff"🔄 Importando: {json_file.name}")
+        if json_file.name != "branches":  # Excluir directorio
+            print(f"🔄 Importando: {json_file.name}")
 
             try:
-    imported_count = db.import_from_json(
-                    str(json_file), source = fff"imported_{json_file.stem}"
+                imported_count = db.import_from_json(
+                    str(json_file), source=f"imported_{json_file.stem}"
                 )
-                    total_imported += imported_count
-                    print(fff"  ✅ Importados: {imported_count} ejemplos")
+                total_imported += imported_count
+                print(f"  ✅ Importados: {imported_count} ejemplos")
 
-                except Exception as e:
-                print(fff"  ❌ Error importando {json_file.name}: {e}")
+            except Exception as e:
+                print(f"  ❌ Error importando {json_file.name}: {e}")
 
-                # Importar datasets por ramas
-                if branches_dir.exists():
-                print(f"\n🔄 Importando datasets específicos por ramas...")
+    # Importar datasets por ramas
+    if branches_dir.exists():
+        print(f"\n🔄 Importando datasets específicos por ramas...")
 
         for json_file in branches_dir.glob("*.json"):
-            print(fff"🔄 Importando rama: {branch_name}")
+            branch_name = json_file.stem
+            print(f"🔄 Importando rama: {branch_name}")
 
             try:
-                    str(json_file), source =fff"branch_{branch_name}"
+                imported_count = db.import_from_json(
+                    str(json_file), source=f"branch_{branch_name}"
                 )
-                    total_imported += imported_count
-                    print(f"  ✅ Rama ff'{branch_name}': {imported_count} ejemplos")
+                total_imported += imported_count
+                print(f"  ✅ Rama '{branch_name}': {imported_count} ejemplos")
 
-                except Exception as e:
-                print(fff"  ❌ Error importando rama {branch_name}: {e}")
+            except Exception as e:
+                print(f"  ❌ Error importando rama {branch_name}: {e}")
 
-                print(f"\n🎉 Importación completada!")
-                    print(fff"📊 Total de ejemplos importados: {total_imported}")
+    print(f"\n🎉 Importación completada!")
+    print(f"📊 Total de ejemplos importados: {total_imported}")
 
-                    # Mostrar estadísticas por ramas
-                    print(f"\n📈 Estadísticas por ramas:")
+    # Mostrar estadísticas por ramas
+    print(f"\n📈 Estadísticas por ramas:")
 
-                    for branch_name, branch_stats in stats.items():
-                        if branch_stats["total_examples"] > 0:
-                            print(
-                                f"  🌿 {branch_stats['display_name']}: {branch_stats['total_examples']} ejemplos (calidad: {branch_stats['avg_quality_score']:.2f})"
-                            )
+    for branch_name, branch_stats in stats.items():
+        if branch_stats["total_examples"] > 0:
+            print(
+                f"  🌿 {branch_stats['display_name']}: {branch_stats['total_examples']} ejemplos (calidad: {branch_stats['avg_quality_score']:.2f})"
+            )
 
             return total_imported
 
@@ -291,40 +293,41 @@ def test_branch_classification():
             "¿Qué es la ley de gravitación?",
             "La ley de gravitación universal establece...",
         ),
-            (
-           "¿Cómo funciona el marketing digital?",
+        (
+            "¿Cómo funciona el marketing digital?",
             "El marketing digital incluye estrategias...",
         ),
-            (
-           "¿Qué es una ecuación cuadrática?",
+        (
+            "¿Qué es una ecuación cuadrática?",
             "Una ecuación cuadrática tiene la forma ax² + bx + c = 0...",
         ),
-        ]
+    ]
 
-        for question, answer in test_examples:
-        print(f"  ❓ ff'{question[:50]}...' → 🌿 Rama: {branch}")
+    for question, answer in test_examples:
+        print(f"  ❓ '{question[:50]}...' → 🌿 Rama: {branch}")
 
-        print("✅ Prueba de clasificación completada")
-
-
-        def main():
-        """Función principal"""
-        print("🚀 Sistema de Importación de Datasets por Ramas")
-        print("=" * 50)
-
-        # Crear datasets sintéticos por ramas
-        create_synthetic_branch_datasets()
-
-        # Importar todos los datasets
-
-        # Probar clasificación
-        test_branch_classification()
-
-        print(f"\n🎉 ¡Proceso completado exitosamente!")
-        print(f"📂 Los datos están organizados en la base de datos por ramas")
-        print(f"💡 Cada rama puede entrenarse independientemente")
-        print(fff"📊 Total de ejemplos disponibles: {total_imported}")
+    print("✅ Prueba de clasificación completada")
 
 
-        if __name__ == "__main__":
-        main()
+def main():
+    """Función principal"""
+    print("🚀 Sistema de Importación de Datasets por Ramas")
+    print("=" * 50)
+
+    # Crear datasets sintéticos por ramas
+    create_synthetic_branch_datasets()
+
+    # Importar todos los datasets
+    import_datasets_to_branches()
+
+    # Probar clasificación
+    test_branch_classification()
+
+    print(f"\n🎉 ¡Proceso completado exitosamente!")
+    print(f"📂 Los datos están organizados en la base de datos por ramas")
+    print(f"💡 Cada rama puede entrenarse independientemente")
+    # Nota: total_imported no está disponible aquí, se calcula dentro de import_datasets_to_branches()
+
+
+if __name__ == "__main__":
+    main()

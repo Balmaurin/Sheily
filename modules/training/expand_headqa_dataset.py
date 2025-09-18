@@ -692,7 +692,9 @@ def convert_to_training_format(
 
             # Construir pregunta completa
             full_question = f"{q['question']}\n\n" + "\n".join(choices_text)
-            full_answer = f"Respuesta correcta: {correct_answer}\n\nExplicación: {explanation}"
+            full_answer = (
+                f"Respuesta correcta: {correct_answer}\n\nExplicación: {explanation}"
+            )
 
             training_data.append(
                 {
