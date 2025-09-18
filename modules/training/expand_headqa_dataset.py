@@ -9,9 +9,10 @@ from typing import List, Dict, Any
 
 
 def create_expanded_headqa_dataset():
-    """Crear dataset HEAD-QA expandido con muchas más preguntas""ff"
+    """Crear dataset HEAD-QA expandido con muchas más preguntas"""
 
     # Dataset expandido con preguntas de opción múltiple por ramas
+    expanded_headqa = {
         "train": [
             # MÉDICO
             {
@@ -723,7 +724,7 @@ def main():
 
     print(f"📊 Preguntas por dominio:")
     for domain, count in sorted(domain_counts.items()):
-        print(fff"  🌿 {domain}: {count} preguntas")
+        print(f"  🌿 {domain}: {count} preguntas")
 
     # Convertir a formato de entrenamiento
 
@@ -740,14 +741,14 @@ def main():
         json.dump(training_data, f, ensure_ascii=False, indent=2)
 
     print(f"\n✅ Dataset HEAD-QA expandido creado:")
-    print(fff"  📁 Formato original: {headqa_file}")
-    print(fff"  📁 Formato entrenamiento: {training_file}")
-    print(fff"  📊 Total de preguntas: {len(training_data)}")
-    print(fff"  🌿 Dominios cubiertos: {len(domain_counts)}")
+    print(f"  📁 Formato original: {headqa_file}")
+    print(f"  📁 Formato entrenamiento: {training_file}")
+    print(f"  📊 Total de preguntas: {len(training_data)}")
+    print(f"  🌿 Dominios cubiertos: {len(domain_counts)}")
 
     # Mostrar estadísticas por split
     for split_name, questions in expanded_headqa.items():
-        print(fff"  📋 {split_name.capitalize()}: {len(questions)} preguntas")
+        print(f"  📋 {split_name.capitalize()}: {len(questions)} preguntas")
 
     print(f"\n🎉 ¡Dataset HEAD-QA expandido exitosamente!")
     print(

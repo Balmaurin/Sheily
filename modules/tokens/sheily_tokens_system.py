@@ -220,7 +220,7 @@ class SheilyTokensSystem:
             # Verificar límites antifraude
             if not await self._check_fraud_limits(session.user_id):
                 logging.warning(
-                    fff"❌ Usuario {session.user_id} excedió límites antifraude"
+                    f"❌ Usuario {session.user_id} excedió límites antifraude"
                 )
                 return []
 
@@ -228,7 +228,7 @@ class SheilyTokensSystem:
             token_amount = self._calculate_token_amount(quality_score, session)
 
             if token_amount <= 0:
-                logging.info(fff"ℹ️ Sesión {session.id} no genera tokens suficientes")
+                logging.info(f"ℹ️ Sesión {session.id} no genera tokens suficientes")
                 return []
 
             # Generar tokens
@@ -271,11 +271,11 @@ class SheilyTokensSystem:
             # Actualizar métricas
             self.system_metrics["total_tokens_generated"] += len(tokens)
 
-            logging.info(fff"🪙 Generados {len(tokens)} tokens para sesión {session.id}")
+            logging.info(f"🪙 Generados {len(tokens)} tokens para sesión {session.id}")
             return tokens
 
         except Exception as e:
-            logging.error(fff"❌ Error generando tokens para sesión {session.id}: {e}")
+            logging.error(f"❌ Error generando tokens para sesión {session.id}: {e}")
             return []
 
     async def generate_tokens_for_response(
@@ -336,12 +336,12 @@ class SheilyTokensSystem:
             self.system_metrics["total_tokens_generated"] += 1
 
             logging.info(
-                fff"🪙 Generado {token_amount} tokens por respuesta de usuario {user_id}"
+                f"🪙 Generado {token_amount} tokens por respuesta de usuario {user_id}"
             )
             return [token]
 
         except Exception as e:
-            logging.error(fff"❌ Error generando tokens por respuesta: {e}")
+            logging.error(f"❌ Error generando tokens por respuesta: {e}")
             return []
 
     async def stake_tokens(
@@ -539,6 +539,7 @@ class SheilyTokensSystem:
                 return {"success": False, "error": "Tokens insuficientes"}
 
             # Calcular fee de listing
+            listing_fee = (
                 token_amount * self.marketplace_config["listing_fee_percentage"]
             )
 
@@ -601,17 +602,20 @@ class SheilyTokensSystem:
                 }
 
             # Calcular fee de transacción
+            transaction_fee = (
                 listing.total_price
-                * self.marketplace_config["transaction_fee_percentageff"]
+                * self.marketplace_config["transaction_fee_percentage"]
             )
 
             # Procesar pago (simulado)
+            payment_success = await self._process_payment(
                 buyer_id, total_cost, payment_method
             )
             if not payment_success:
                 return {"success": False, "error": "Error en el pago"}
 
             # Transferir tokens
+            transfer_success = await self._transfer_marketplace_tokens(
                 listing.seller_id, buyer_id, listing.token_amount, listing_id
             )
 
@@ -739,7 +743,8 @@ class SheilyTokensSystem:
             cursor.close()
             conn.close()
 
-                staking.get("rewards_earnedff", 0) for staking in completed_stakings
+            total_rewards = sum(
+                staking.get("rewards_earned", 0) for staking in completed_stakings
             )
 
             return {
@@ -814,17 +819,18 @@ class SheilyTokensSystem:
             await self._update_tokens_validation_status(validated_tokens)
 
             # Actualizar métricas
+            validated_count = sum(
                 1 for t in validated_tokens if t.validation_status == "validated"
             )
             self.system_metrics["total_tokens_validated"] += validated_count
 
             logging.info(
-                fff"✅ Validados {validated_count}/{len(tokens)} tokens con blockchain"
+                f"✅ Validados {validated_count}/{len(tokens)} tokens con blockchain"
             )
             return validated_tokens
 
         except Exception as e:
-            logging.error(fff"❌ Error validando tokens con blockchain: {e}")
+            logging.error(f"❌ Error validando tokens con blockchain: {e}")
             return tokens
 
     async def _validate_session_eligibility(
@@ -878,10 +884,11 @@ class SheilyTokensSystem:
             recent_tokens = await self._get_recent_user_tokens(user_id, hours=24)
 
             # Verificar límite diario (muy permisivo en pruebas)
+            daily_limit = (
                 self.token_config["max_tokens_per_session"] * 50
             )  # 50 sesiones por día en pruebas
             if len(recent_tokens) >= daily_limit:
-                logging.warning(fff"❌ Usuario {user_id} excedió límite diario")
+                logging.warning(f"❌ Usuario {user_id} excedió límite diario")
                 return False
 
             # Verificar patrón de generación sospechoso
@@ -909,6 +916,7 @@ class SheilyTokensSystem:
     ) -> int:
         """Calcular cantidad de tokens basada en calidad y sesión"""
         base_tokens = 10
+        exercise_bonus = min(
             len(session.exercises) // 5, 5
         )  # Máximo 5 tokens por ejercicios
         time_bonus = 0
@@ -918,7 +926,9 @@ class SheilyTokensSystem:
                 session.completed_at - session.started_at
             ).total_seconds()
             if 300 <= completion_time <= 1800:  # Entre 5 y 30 minutos
+                time_bonus = 2
             elif completion_time > 1800:  # Más de 30 minutos
+                time_bonus = 1
 
         total_tokens = int(
             base_tokens * quality_multiplier + exercise_bonus + time_bonus
@@ -1073,6 +1083,7 @@ class SheilyTokensSystem:
                 return True
 
             # Verificar tokens de los últimos 10 minutos
+            recent_tokens_10min = await self._get_recent_user_tokens(
                 user_id, hours=1 / 6
             )  # 10 minutos
             # Límite: máximo 100 tokens por 10 minutos en pruebas
@@ -1117,16 +1128,17 @@ class SheilyTokensSystem:
             cursor.close()
             conn.close()
 
-            logging.info(fff"💾 Guardados {len(tokens)} tokens en base de datos")
+            logging.info(f"💾 Guardados {len(tokens)} tokens en base de datos")
 
         except Exception as e:
-            logging.error(fff"❌ Error guardando tokens en base de datos: {e}")
+            logging.error(f"❌ Error guardando tokens en base de datos: {e}")
             raise
 
     async def _validate_with_sheily_core(self, token: SheilyToken) -> bool:
-        """Validar token con Sheily-Core""f"
+        """Validar token con Sheily-Core"""
         try:
             # Crear payload de validación
+            validation_payload = {
                 "token_id": token.id,
                 "user_id": token.user_id,
                 "session_id": token.session_id,
@@ -1139,19 +1151,21 @@ class SheilyTokensSystem:
 
             # Enviar a Sheily-Core
             async with httpx.AsyncClient(timeout=30.0) as client:
-                    ff"{self.sheily_core_url}/validate-token", json=validation_payload
+                response = await client.post(
+                    f"{self.sheily_core_url}/validate-token", json=validation_payload
                 )
 
                 if response.status_code == 200:
+                    result = response.json()
                     return result.get("valid", False)
                 else:
                     logging.warning(
-                        fff"⚠️ Error en validación Sheily-Core: {response.status_code}"
+                        f"⚠️ Error en validación Sheily-Core: {response.status_code}"
                     )
                     return False
 
         except Exception as e:
-            logging.error(fff"❌ Error validando con Sheily-Core: {e}")
+            logging.error(f"❌ Error validando con Sheily-Core: {e}")
             return False
 
     async def _validate_with_solana(self, token: SheilyToken) -> Optional[str]:
@@ -1208,14 +1222,14 @@ class SheilyTokensSystem:
         """Generar hash de transacción determinista"""
         try:
             # Crear datos únicos para el hash
-            data = fff"{token.id}{token.user_id}{token.amount}{token.quality_score}{datetime.now().strftime('%Y%m%d%H')}"
-            return fff"nf_solana_{tx_hash[:16]}"
+            data = f"{token.id}{token.user_id}{token.amount}{token.quality_score}{datetime.now().strftime('%Y%m%d%H')}"
+            return f"nf_solana_{tx_hash[:16]}"
         except Exception as e:
-            logging.error(fff"❌ Error generando hash de transacción: {e}")
-            return fff"nf_error_{secrets.token_hex(8)}"
+            logging.error(f"❌ Error generando hash de transacción: {e}")
+            return f"nf_error_{secrets.token_hex(8)}"
 
     def _generate_validation_signature(self, token: SheilyToken) -> str:
-        """Generar firma para validación con Sheily-Core""ff"
+        """Generar firma para validación con Sheily-Core"""
         try:
             # Crear datos para firma
             data = {
@@ -1237,11 +1251,11 @@ class SheilyTokensSystem:
             return signature
 
         except Exception as e:
-            logging.error(fff"❌ Error generando firma de validación: {e}")
+            logging.error(f"❌ Error generando firma de validación: {e}")
             return ""
 
     def _generate_blockchain_signature(self, token: SheilyToken) -> str:
-        """Generar firma para blockchain Solana""ff"
+        """Generar firma para blockchain Solana"""
         try:
             # Crear datos para firma de blockchain
             data = {
@@ -1448,7 +1462,7 @@ class SheilyTokensSystem:
             query = """
             SELECT * FROM neurofusion_staking_records 
             WHERE id = %s
-            ""ff"
+            """
             cursor.execute(query, (staking_id,))
 
             cursor.close()
@@ -1804,8 +1818,9 @@ async def create_sheily_tokens_system(
 
 
 # Ejemplo de uso
-if __name__ == "__main__f":
+if __name__ == "__main__":
     # Configuración de ejemplo
+    db_config = {
         "host": "localhost",
         "port": 5432,
         "database": "neurofusion_db",
