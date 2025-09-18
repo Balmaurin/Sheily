@@ -16,10 +16,11 @@ sys.path.append(str(Path(__file__).parent / "ai"))
 
 def create_synthetic_branch_datasets():
     """Crear datasets sintéticos específicos para cada rama"""
-    print("🔄 Creando datasets sintéticos por ramas...f")
+    print("🔄 Creando datasets sintéticos por ramas...")
 
     # Datasets sintéticos organizados por ramas
-       "medicalf": [
+    branch_datasets = {
+        "medical": [
             {
                 "input_text": "¿Cuáles son los síntomas principales del COVID-19?",
                 "target_text": "Los síntomas principales del COVID-19 incluyen fiebre, tos seca, fatiga, pérdida del gusto u olfato, dificultad para respirar, dolor muscular y de garganta. En casos graves puede causar neumonía y síndrome de dificultad respiratoria aguda.",
@@ -32,7 +33,7 @@ def create_synthetic_branch_datasets():
                 "target_text": "La hipertensión arterial es una condición médica caracterizada por una presión arterial persistentemente elevada. Se considera hipertensión cuando la presión sistólica es ≥140 mmHg y/o la diastólica ≥90 mmHg. Es un factor de riesgo importante para enfermedades cardiovasculares.",
                 "quality_score": 0.95,
                 "source": "synthetic_medical",
-                "domain": "medicalff",
+                "domain": "medical",
             },
             {
                 "input_text": "¿Cuáles son las medidas de prevención del COVID-19?",
@@ -195,24 +196,25 @@ def create_synthetic_branch_datasets():
         ],
     }
 
-        # Guardar datasets por ramas
-        output_dir = Path("data/training_datasets/branches")
-        output_dir.mkdir(parents=True, exist_ok=True)
+    # Guardar datasets por ramas
+    output_dir = Path("data/training_datasets/branches")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        total_examples = 0
-        for branch_name, examples in branch_datasets.items():
+    total_examples = 0
+    for branch_name, examples in branch_datasets.items():
+        output_file = output_dir / f"{branch_name}_dataset.json"
 
-    with open(output_file, "w", encoding="utf-8") as f:
-    json.dump(examples, f, ensure_ascii=False, indent=2)
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(examples, f, ensure_ascii=False, indent=2)
 
-        print(f"✅ Rama ff'{branch_name}': {len(examples)} ejemplos")
+        print(f"✅ Rama '{branch_name}': {len(examples)} ejemplos")
         total_examples += len(examples)
 
-        print(fff"📊 Total de ejemplos sintéticos creados: {total_examples}")
-        return output_dir
+    print(f"📊 Total de ejemplos sintéticos creados: {total_examples}")
+    return output_dir
 
 
-    def import_datasets_to_branches():
+def import_datasets_to_branches():
     """Importar todos los datasets a la base de datos por ramas"""
     print("🚀 Iniciando importación de datasets a ramas...")
 
@@ -222,7 +224,7 @@ def create_synthetic_branch_datasets():
     # Directorio de datasets
 
     if not datasets_dir.exists():
-    print("❌ No se encontró el directorio de datasets")
+    print("Datasets directory not found")
         return
 
     total_imported = 0
@@ -265,27 +267,28 @@ def create_synthetic_branch_datasets():
                     print(f"\n📈 Estadísticas por ramas:")
 
                     for branch_name, branch_stats in stats.items():
-        if branch_stats["total_examples"] > 0:
-            print(
-                fff"  🌿 {branch_stats['display_name']}: {branch_stats['total_examplesff']} ejemplos (calidad: {branch_stats['avg_quality_score']:.2f})"
-            )
+                        if branch_stats["total_examples"] > 0:
+                            print(
+                                f"  🌿 {branch_stats['display_name']}: {branch_stats['total_examples']} ejemplos (calidad: {branch_stats['avg_quality_score']:.2f})"
+                            )
 
             return total_imported
 
 
-            def test_branch_classification():
-            """Probar la clasificación automática de ejemplos"""
-            print("🧪 Probando clasificación automática de ramas...")
+def test_branch_classification():
+    """Probar la clasificación automática de ejemplos"""
+    print("🧪 Probando clasificación automática de ramas...")
 
     db = get_branch_training_database()
 
-                (
+    test_examples = [
+        (
             "¿Cuáles son los síntomas del COVID-19?",
             "Los síntomas incluyen fiebre, tos y fatiga...",
         ),
-            ("¿Qué es Python?", "Python es un lenguaje de programación..."),
-            (
-           "¿Qué es la ley de gravitación?",
+        ("¿Qué es Python?", "Python es un lenguaje de programación..."),
+        (
+            "¿Qué es la ley de gravitación?",
             "La ley de gravitación universal establece...",
         ),
             (

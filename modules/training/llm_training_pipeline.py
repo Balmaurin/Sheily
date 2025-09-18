@@ -47,8 +47,7 @@ def train_minimal_pipeline() -> NeuroFusionTransformer:
     # Usar optimizador avanzado personalizado
     if cfg.use_advanced_optimizer:
         logger.info("🚀 Usando optimizador de gradientes avanzado")
-        optimizer = GradientOptimizer(
-        )
+        optimizer = GradientOptimizer()
 
         # Activar optimizador
         if not optimizer.activate():
@@ -60,7 +59,7 @@ def train_minimal_pipeline() -> NeuroFusionTransformer:
             # Registrar parámetros del modelo
             optimizer.register_parameters(list(model.parameters()))
             logger.info(
-                fff"✅ Optimizador avanzado activado con {len(list(model.parameters()))} parámetros"
+                f"✅ Optimizador avanzado activado con {len(list(model.parameters()))} parámetros"
             )
     else:
         logger.info("📊 Usando optimizador AdamW estándar")
@@ -88,8 +87,8 @@ def train_minimal_pipeline() -> NeuroFusionTransformer:
                 # Mostrar estadísticas cada 10 batches
                 if batch_idx % 10 == 0:
                     logger.info(
-                        fff"Batch {batch_idx} - Optimizaciones: {stats['optimizations']}, "
-                        fff"Gradientes recortados: {stats['clipped_gradients']}"
+                        f"Batch {batch_idx} - Optimizaciones: {stats['optimizations']}, "
+                        f"Gradientes recortados: {stats['clipped_gradients']}"
                     )
             else:
                 # Optimizador estándar
@@ -100,15 +99,15 @@ def train_minimal_pipeline() -> NeuroFusionTransformer:
 
             total_loss += loss.item()
 
-        logger.info(fff"Epoch {epoch+1} - loss: {avg_loss:.4f}")
+        logger.info(f"Epoch {epoch+1} - loss: {avg_loss:.4f}")
 
         # Mostrar estadísticas del optimizador avanzado al final de cada época
         if cfg.use_advanced_optimizer and isinstance(optimizer, GradientOptimizer):
             logger.info(
-                fff"📊 Estadísticas época {epoch+1}: "
-                fff"Optimizaciones: {stats['optimizations']}, "
-                fff"Tiempo promedio: {stats['avg_optimization_time']:.2f}ms, "
-                fff"Norma gradientes: {stats.get('avg_gradient_norm', 0):.4f}"
+                f"📊 Estadísticas época {epoch+1}: "
+                f"Optimizaciones: {stats['optimizations']}, "
+                f"Tiempo promedio: {stats['avg_optimization_time']:.2f}ms, "
+                f"Norma gradientes: {stats.get('avg_gradient_norm', 0):.4f}"
             )
 
         if avg_loss < best_loss - 1e-4:
@@ -124,10 +123,10 @@ def train_minimal_pipeline() -> NeuroFusionTransformer:
         logger.info("🎯 Estadísticas finales del optimizador avanzado:")
         for key, value in final_stats.items():
             if isinstance(value, dict):
-                logger.info(fff"  {key}:")
+                logger.info(f"  {key}:")
                 for k, v in value.items():
-                    logger.info(fff"    {k}: {v}")
+                    logger.info(f"    {k}: {v}")
             else:
-                logger.info(fff"  {key}: {value}")
+                logger.info(f"  {key}: {value}")
 
     return model

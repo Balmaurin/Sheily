@@ -8,12 +8,13 @@ import requests
 import json
 from datetime import datetime
 
+
 def main():
     print("🏆 VERIFICACIÓN BACKEND PURO 100% - SHEILY AI")
     print("=" * 60)
     print("Solo endpoints del backend gestionados por Gateway")
     print("=" * 60)
-    
+
     # Solo los 20 endpoints del backend (sin LLM Server externo)
     backend_endpoints = [
         ("GET", "/api/health", "Health check del sistema"),
@@ -37,38 +38,38 @@ def main():
         ("GET", "/api/admin/chat/backups", "Lista de backups"),
         ("POST", "/api/admin/chat/backup", "Crear backup manual"),
     ]
-    
+
     print(f"🧪 PROBANDO {len(backend_endpoints)} ENDPOINTS DEL BACKEND...")
     print("-" * 60)
-    
+
     working = 0
     total = len(backend_endpoints)
-    
+
     for i, (method, endpoint, description) in enumerate(backend_endpoints, 1):
         try:
             url = f"http://localhost:8000{endpoint}"
-            
-            if method == 'GET':
+
+            if method == "GET":
                 response = requests.get(url, timeout=3)
             else:
                 response = requests.post(url, json={}, timeout=3)
-            
+
             if response.status_code == 200:
                 working += 1
                 status = "✅ FUNCIONAL"
             else:
                 status = f"❌ ERROR {response.status_code}"
-            
+
             print(f"🔍 {i:2d}/20 {method} {endpoint}")
             print(f"      {status} - {description}")
-            
+
         except Exception as e:
             print(f"🔍 {i:2d}/20 {method} {endpoint}")
             print(f"      ❌ ERROR - {str(e)[:50]}")
-    
+
     # CALCULAR EFICIENCIA REAL
     efficiency = (working / total) * 100
-    
+
     print("\n" + "=" * 60)
     print("🏆 RESUMEN FINAL - BACKEND PURO")
     print("=" * 60)
@@ -76,7 +77,7 @@ def main():
     print(f"❌ Endpoints fallidos: {total - working}")
     print(f"📈 Eficiencia del Backend: {efficiency:.1f}%")
     print(f"🎯 Total endpoints verificados: {total}")
-    
+
     if efficiency == 100.0:
         print("\n🎉 ¡PERFECTO! ¡BACKEND AL 100% DE EFICIENCIA!")
         print("🏆 ¡OBJETIVO CONSEGUIDO COMPLETAMENTE!")
@@ -89,10 +90,13 @@ def main():
         print("\n✅ BUENO: Backend funcionando óptimamente")
     else:
         print("\n⚠️ ATENCIÓN: Backend necesita optimización")
-    
-    print(f"\n🕒 Verificación completada: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
+    print(
+        f"\n🕒 Verificación completada: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
     return efficiency
+
 
 if __name__ == "__main__":
     main()

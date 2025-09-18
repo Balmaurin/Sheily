@@ -12,6 +12,7 @@ from collections import Counter
 
 logger = logging.getLogger(__name__)
 
+
 class QualityEvaluator:
     """
     Evaluador inteligente de calidad para respuestas de ejercicios de IA
@@ -23,36 +24,141 @@ class QualityEvaluator:
 
         # Criterios de evaluación
         self.criteria_weights = {
-            'length_appropriate': 0.15,
-            'vocabulary_richness': 0.20,
-            'grammar_correctness': 0.15,
-            'content_relevance': 0.25,
-            'creativity_originality': 0.15,
-            'structure_coherence': 0.10
+            "length_appropriate": 0.15,
+            "vocabulary_richness": 0.20,
+            "grammar_correctness": 0.15,
+            "content_relevance": 0.25,
+            "creativity_originality": 0.15,
+            "structure_coherence": 0.10,
         }
 
         # Palabras de baja calidad (frecuentes pero poco informativas)
         self.low_quality_words = {
-            'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
-            'y', 'o', 'pero', 'que', 'de', 'en', 'a', 'por', 'para',
-            'con', 'sin', 'sobre', 'entre', 'hasta', 'desde', 'durante',
-            'es', 'son', 'era', 'eran', 'fue', 'fueron', 'ser', 'estar',
-            'tener', 'hacer', 'ir', 'ver', 'dar', 'saber', 'querer', 'llegar',
-            'pasar', 'deber', 'poner', 'parecer', 'quedar', 'creer', 'hablar',
-            'llevar', 'dejar', 'seguir', 'encontrar', 'llamar', 'venir', 'pensar',
-            'salir', 'volver', 'tomar', 'conocer', 'vivir', 'sentir', 'tratar',
-            'mirar', 'contar', 'empezar', 'esperar', 'buscar', 'existir', 'entrar',
-            'trabajar', 'escribir', 'perder', 'producir', 'ocurrir', 'entender',
-            'pedir', 'recibir', 'recordar', 'terminar', 'permitir', 'aparecer',
-            'conseguir', 'comenzar', 'servir', 'sacar', 'necesitar', 'mantener',
-            'resultar', 'leer', 'caer', 'cambiar', 'presentar', 'crear', 'abrir',
-            'considerar', 'oír', 'acabar', 'convertir', 'ganar', 'formar', 'traer',
-            'partir', 'morir', 'aceptar', 'realizar', 'suponer', 'comprender', 'lograr',
-            'explicar', 'preguntar', 'tocar', 'reconocer', 'estudiar', 'alcanzar',
-            'nacer', 'dirigir', 'correr', 'utilizar', 'pagar', 'ayudar', 'gustar'
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "unos",
+            "unas",
+            "y",
+            "o",
+            "pero",
+            "que",
+            "de",
+            "en",
+            "a",
+            "por",
+            "para",
+            "con",
+            "sin",
+            "sobre",
+            "entre",
+            "hasta",
+            "desde",
+            "durante",
+            "es",
+            "son",
+            "era",
+            "eran",
+            "fue",
+            "fueron",
+            "ser",
+            "estar",
+            "tener",
+            "hacer",
+            "ir",
+            "ver",
+            "dar",
+            "saber",
+            "querer",
+            "llegar",
+            "pasar",
+            "deber",
+            "poner",
+            "parecer",
+            "quedar",
+            "creer",
+            "hablar",
+            "llevar",
+            "dejar",
+            "seguir",
+            "encontrar",
+            "llamar",
+            "venir",
+            "pensar",
+            "salir",
+            "volver",
+            "tomar",
+            "conocer",
+            "vivir",
+            "sentir",
+            "tratar",
+            "mirar",
+            "contar",
+            "empezar",
+            "esperar",
+            "buscar",
+            "existir",
+            "entrar",
+            "trabajar",
+            "escribir",
+            "perder",
+            "producir",
+            "ocurrir",
+            "entender",
+            "pedir",
+            "recibir",
+            "recordar",
+            "terminar",
+            "permitir",
+            "aparecer",
+            "conseguir",
+            "comenzar",
+            "servir",
+            "sacar",
+            "necesitar",
+            "mantener",
+            "resultar",
+            "leer",
+            "caer",
+            "cambiar",
+            "presentar",
+            "crear",
+            "abrir",
+            "considerar",
+            "oír",
+            "acabar",
+            "convertir",
+            "ganar",
+            "formar",
+            "traer",
+            "partir",
+            "morir",
+            "aceptar",
+            "realizar",
+            "suponer",
+            "comprender",
+            "lograr",
+            "explicar",
+            "preguntar",
+            "tocar",
+            "reconocer",
+            "estudiar",
+            "alcanzar",
+            "nacer",
+            "dirigir",
+            "correr",
+            "utilizar",
+            "pagar",
+            "ayudar",
+            "gustar",
         }
 
-    def evaluate_response(self, response: str, exercise_config: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_response(
+        self, response: str, exercise_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Evalúa la calidad de una respuesta completa
 
@@ -69,17 +175,23 @@ class QualityEvaluator:
 
             # Evaluación de criterios individuales
             scores = {
-                'length_appropriate': self._evaluate_length(cleaned_response, exercise_config),
-                'vocabulary_richness': self._evaluate_vocabulary(cleaned_response),
-                'grammar_correctness': self._evaluate_grammar(cleaned_response),
-                'content_relevance': self._evaluate_relevance(cleaned_response, exercise_config),
-                'creativity_originality': self._evaluate_creativity(cleaned_response),
-                'structure_coherence': self._evaluate_structure(cleaned_response)
+                "length_appropriate": self._evaluate_length(
+                    cleaned_response, exercise_config
+                ),
+                "vocabulary_richness": self._evaluate_vocabulary(cleaned_response),
+                "grammar_correctness": self._evaluate_grammar(cleaned_response),
+                "content_relevance": self._evaluate_relevance(
+                    cleaned_response, exercise_config
+                ),
+                "creativity_originality": self._evaluate_creativity(cleaned_response),
+                "structure_coherence": self._evaluate_structure(cleaned_response),
             }
 
             # Calcular score final ponderado
-            final_score = sum(scores[criterion] * self.criteria_weights[criterion]
-                            for criterion in scores)
+            final_score = sum(
+                scores[criterion] * self.criteria_weights[criterion]
+                for criterion in scores
+            )
 
             # Redondear a entero
             final_score = round(final_score)
@@ -88,36 +200,40 @@ class QualityEvaluator:
             feedback = self._generate_feedback(scores, exercise_config)
 
             # Determinar si califica para dataset
-            qualifies_for_dataset = final_score >= exercise_config.get('minQualityScore', 90)
+            qualifies_for_dataset = final_score >= exercise_config.get(
+                "minQualityScore", 90
+            )
 
             # Calcular tokens a otorgar
-            tokens_earned = exercise_config.get('datasetValue', 10) if qualifies_for_dataset else 0
+            tokens_earned = (
+                exercise_config.get("datasetValue", 10) if qualifies_for_dataset else 0
+            )
 
             return {
-                'qualityScore': final_score,
-                'scores': scores,
-                'feedback': feedback,
-                'qualifiesForDataset': qualifies_for_dataset,
-                'tokensEarned': tokens_earned,
-                'evaluationTimestamp': datetime.now().isoformat(),
-                'metadata': {
-                    'responseLength': len(cleaned_response),
-                    'wordCount': len(cleaned_response.split()),
-                    'sentenceCount': len(re.split(r'[.!?]+', cleaned_response.strip())),
-                    'criteriaEvaluated': len(scores)
-                }
+                "qualityScore": final_score,
+                "scores": scores,
+                "feedback": feedback,
+                "qualifiesForDataset": qualifies_for_dataset,
+                "tokensEarned": tokens_earned,
+                "evaluationTimestamp": datetime.now().isoformat(),
+                "metadata": {
+                    "responseLength": len(cleaned_response),
+                    "wordCount": len(cleaned_response.split()),
+                    "sentenceCount": len(re.split(r"[.!?]+", cleaned_response.strip())),
+                    "criteriaEvaluated": len(scores),
+                },
             }
 
         except Exception as e:
             logger.error(f"Error evaluando respuesta: {e}")
             return {
-                'qualityScore': 0,
-                'scores': {},
-                'feedback': 'Error en la evaluación automática. Respuesta será revisada manualmente.',
-                'qualifiesForDataset': False,
-                'tokensEarned': 0,
-                'evaluationTimestamp': datetime.now().isoformat(),
-                'error': str(e)
+                "qualityScore": 0,
+                "scores": {},
+                "feedback": "Error en la evaluación automática. Respuesta será revisada manualmente.",
+                "qualifiesForDataset": False,
+                "tokensEarned": 0,
+                "evaluationTimestamp": datetime.now().isoformat(),
+                "error": str(e),
             }
 
     def _preprocess_text(self, text: str) -> str:
@@ -126,17 +242,17 @@ class QualityEvaluator:
         text = text.lower()
 
         # Remover caracteres especiales pero mantener puntuación básica
-        text = re.sub(r'[^\w\s.,!?;:-]', '', text)
+        text = re.sub(r"[^\w\s.,!?;:-]", "", text)
 
         # Normalizar espacios
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
     def _evaluate_length(self, response: str, config: Dict[str, Any]) -> float:
         """Evalúa si la longitud es apropiada"""
         length = len(response)
-        max_length = config.get('maxLength', 500)
+        max_length = config.get("maxLength", 500)
 
         if length < self.min_length:
             return 20  # Muy corta
@@ -151,7 +267,7 @@ class QualityEvaluator:
 
     def _evaluate_vocabulary(self, response: str) -> float:
         """Evalúa la riqueza del vocabulario"""
-        words = re.findall(r'\b\w+\b', response.lower())
+        words = re.findall(r"\b\w+\b", response.lower())
         if not words:
             return 0
 
@@ -174,7 +290,7 @@ class QualityEvaluator:
         score = 100
 
         # Penalizaciones por errores comunes
-        sentences = re.split(r'[.!?]+', response.strip())
+        sentences = re.split(r"[.!?]+", response.strip())
 
         for sentence in sentences:
             sentence = sentence.strip()
@@ -191,7 +307,9 @@ class QualityEvaluator:
                 score -= 3
 
         # Penalización por uso excesivo de mayúsculas
-        uppercase_ratio = sum(1 for c in response if c.isupper()) / len(response) if response else 0
+        uppercase_ratio = (
+            sum(1 for c in response if c.isupper()) / len(response) if response else 0
+        )
         if uppercase_ratio > 0.3:
             score -= 20
 
@@ -200,17 +318,17 @@ class QualityEvaluator:
     def _evaluate_relevance(self, response: str, config: Dict[str, Any]) -> float:
         """Evalúa la relevancia del contenido (básica)"""
         # Análisis básico basado en palabras clave del ejercicio
-        exercise_title = config.get('title', '').lower()
-        exercise_description = config.get('description', '').lower()
+        exercise_title = config.get("title", "").lower()
+        exercise_description = config.get("description", "").lower()
 
         # Extraer palabras clave del ejercicio
         keywords = set()
         for text in [exercise_title, exercise_description]:
-            words = re.findall(r'\b\w+\b', text)
+            words = re.findall(r"\b\w+\b", text)
             keywords.update(words)
 
         # Contar coincidencias en la respuesta
-        response_words = set(re.findall(r'\b\w+\b', response.lower()))
+        response_words = set(re.findall(r"\b\w+\b", response.lower()))
         matches = len(keywords.intersection(response_words))
 
         # Calcular ratio de relevancia
@@ -223,7 +341,7 @@ class QualityEvaluator:
     def _evaluate_creativity(self, response: str) -> float:
         """Evalúa creatividad y originalidad"""
         # Análisis de diversidad de estructuras
-        sentences = re.split(r'[.!?]+', response.strip())
+        sentences = re.split(r"[.!?]+", response.strip())
 
         if len(sentences) < 2:
             return 50  # Respuesta muy corta
@@ -236,15 +354,30 @@ class QualityEvaluator:
 
         # Variabilidad en longitud de oraciones (creatividad en estructura)
         avg_length = sum(sentence_lengths) / len(sentence_lengths)
-        variance = sum((length - avg_length) ** 2 for length in sentence_lengths) / len(sentence_lengths)
+        variance = sum((length - avg_length) ** 2 for length in sentence_lengths) / len(
+            sentence_lengths
+        )
         variability_score = min(100, variance * 2)  # Máximo 100
 
         # Presencia de conectores lógicos (y, pero, porque, aunque, etc.)
-        connectors = ['y', 'pero', 'porque', 'aunque', 'sin embargo', 'además', 'también',
-                     'entonces', 'por lo tanto', 'es decir', 'o sea', 'es decir']
+        connectors = [
+            "y",
+            "pero",
+            "porque",
+            "aunque",
+            "sin embargo",
+            "además",
+            "también",
+            "entonces",
+            "por lo tanto",
+            "es decir",
+            "o sea",
+            "es decir",
+        ]
 
-        connector_count = sum(1 for word in re.findall(r'\b\w+\b', response.lower())
-                            if word in connectors)
+        connector_count = sum(
+            1 for word in re.findall(r"\b\w+\b", response.lower()) if word in connectors
+        )
 
         connector_score = min(100, connector_count * 10)
 
@@ -252,7 +385,7 @@ class QualityEvaluator:
 
     def _evaluate_structure(self, response: str) -> float:
         """Evalúa la estructura y coherencia"""
-        sentences = re.split(r'[.!?]+', response.strip())
+        sentences = re.split(r"[.!?]+", response.strip())
 
         if len(sentences) < 2:
             return 30  # Muy poca estructura
@@ -266,44 +399,59 @@ class QualityEvaluator:
                 score -= 10
 
         # Bonificación por párrafos (si hay saltos de línea)
-        if '\n' in response:
+        if "\n" in response:
             score += 10
 
         # Verificar puntuación al final
         last_sentence = sentences[-1].strip()
-        if last_sentence and not last_sentence.endswith(('.', '!', '?', ':')):
+        if last_sentence and not last_sentence.endswith((".", "!", "?", ":")):
             score -= 5
 
         return max(0, score)
 
-    def _generate_feedback(self, scores: Dict[str, float], config: Dict[str, Any]) -> str:
+    def _generate_feedback(
+        self, scores: Dict[str, float], config: Dict[str, Any]
+    ) -> str:
         """Genera feedback constructivo basado en los scores"""
         feedback_parts = []
 
         # Feedback por criterio
-        if scores.get('length_appropriate', 0) < 70:
-            feedback_parts.append("Considera expandir tu respuesta para proporcionar más detalle.")
+        if scores.get("length_appropriate", 0) < 70:
+            feedback_parts.append(
+                "Considera expandir tu respuesta para proporcionar más detalle."
+            )
 
-        if scores.get('vocabulary_richness', 0) < 70:
-            feedback_parts.append("Intenta usar un vocabulario más variado y específico.")
+        if scores.get("vocabulary_richness", 0) < 70:
+            feedback_parts.append(
+                "Intenta usar un vocabulario más variado y específico."
+            )
 
-        if scores.get('grammar_correctness', 0) < 80:
+        if scores.get("grammar_correctness", 0) < 80:
             feedback_parts.append("Revisa la gramática y estructura de tus oraciones.")
 
-        if scores.get('content_relevance', 0) < 70:
-            feedback_parts.append("Asegúrate de que tu respuesta sea relevante para el ejercicio solicitado.")
+        if scores.get("content_relevance", 0) < 70:
+            feedback_parts.append(
+                "Asegúrate de que tu respuesta sea relevante para el ejercicio solicitado."
+            )
 
-        if scores.get('creativity_originality', 0) < 70:
-            feedback_parts.append("Agrega más creatividad y ejemplos originales a tu respuesta.")
+        if scores.get("creativity_originality", 0) < 70:
+            feedback_parts.append(
+                "Agrega más creatividad y ejemplos originales a tu respuesta."
+            )
 
-        if scores.get('structure_coherence', 0) < 70:
-            feedback_parts.append("Mejora la estructura y organización de tu respuesta.")
+        if scores.get("structure_coherence", 0) < 70:
+            feedback_parts.append(
+                "Mejora la estructura y organización de tu respuesta."
+            )
 
         # Si todo está bien
         if not feedback_parts and all(score >= 80 for score in scores.values()):
-            feedback_parts.append("¡Excelente respuesta! Muestra creatividad y cumple con todos los criterios.")
+            feedback_parts.append(
+                "¡Excelente respuesta! Muestra creatividad y cumple con todos los criterios."
+            )
 
         return " ".join(feedback_parts)
+
 
 # Instancia global del evaluador
 quality_evaluator = QualityEvaluator()

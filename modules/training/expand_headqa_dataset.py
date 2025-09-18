@@ -675,27 +675,30 @@ def create_expanded_headqa_dataset():
 def convert_to_training_format(
     headqa_data: Dict[str, List[Dict[str, Any]]],
 ) -> List[Dict[str, Any]]:
-    """Convertir dataset HEAD-QA a formato de entrenamiento"""
+    """Convert HEAD-QA dataset to training format"""
     training_data = []
 
     for split_name, questions in headqa_data.items():
         for q in questions:
             # Crear pregunta con opciones
-                [fff"{i+1}. {choice}" for i, choice in enumerate(q["choices"])]
-            )
+            choices_text = [f"{i+1}. {choice}" for i, choice in enumerate(q["choices"])]
 
             # Respuesta correcta
+            correct_answer = q["choices"][q["answer_idx"]]
 
             # Texto completo para entrenamiento
-                fff"Respuesta correcta: {correct_answer}\n\nExplicación: {explanation}"
-            )
+            explanation = q.get("explanation", "Sin explicación disponible")
+
+            # Construir pregunta completa
+            full_question = f"{q['question']}\n\n" + "\n".join(choices_text)
+            full_answer = f"Respuesta correcta: {correct_answer}\n\nExplicación: {explanation}"
 
             training_data.append(
                 {
                     "input_text": full_question,
                     "target_text": full_answer,
                     "quality_score": 0.95,
-                    "source": fff"headqa_expanded_{split_name}",
+                    "source": f"headqa_expanded_{split_name}",
                     "timestamp": 1756062674.4658723,
                     "domain": q["domain"],
                 }

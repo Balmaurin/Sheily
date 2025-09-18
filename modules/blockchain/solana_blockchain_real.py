@@ -21,6 +21,7 @@ try:
     from solana.keypair import Keypair
     from solana.publickey import PublicKey
     from solana.system_program import TransferParams, transfer
+
     SOLANA_AVAILABLE = True
 except ImportError:
     try:
@@ -30,6 +31,7 @@ except ImportError:
         from solanasdk.keypair import Keypair
         from solanasdk.publickey import PublicKey
         from solanasdk.system_program import TransferParams, transfer
+
         SOLANA_AVAILABLE = True
     except ImportError:
         logging.warning("Solana no disponible, usando simulación")
@@ -46,11 +48,11 @@ class SolanaConfig:
     rpc_url: str = "https://api.devnet.solana.com"
     commitment: str = "confirmed"
     timeout: int = 30
-    
+
     # Configuración adicional para conexiones reales
     ws_url: Optional[str] = None
     api_key: Optional[str] = None
-    
+
     def __post_init__(self):
         """Configurar URLs según la red"""
         if self.network == "devnet":
@@ -62,7 +64,7 @@ class SolanaConfig:
         elif self.network == "mainnet-beta":
             self.rpc_url = "https://api.mainnet-beta.solana.com"
             self.ws_url = "wss://api.mainnet-beta.solana.com"
-        
+
         # Usar API key si está disponible
         if self.api_key and "api.mainnet-beta.solana.com" in self.rpc_url:
             self.rpc_url = f"https://api.mainnet-beta.solana.com?api-key={self.api_key}"
@@ -101,29 +103,29 @@ class SolanaBlockchainReal:
     def __init__(self, config: SolanaConfig = None):
         # Cargar configuración desde variables de entorno
         self.config = self._load_config(config)
-        
+
         # Verificar conectividad
         self.connection_available = False
-        
+
         if SOLANA_AVAILABLE:
             try:
                 # Cliente Solana real con configuración mejorada
                 self.client = Client(
-                    self.config.rpc_url, 
+                    self.config.rpc_url,
                     commitment=Commitment(self.config.commitment),
-                    timeout=self.config.timeout
+                    timeout=self.config.timeout,
                 )
-                
+
                 # Probar conexión
                 self._test_connection()
-                
+
                 if self.connection_available:
                     self.network_info = self._get_network_info()
                     logger.info(f"✅ Conectado a Solana {self.config.network}")
                 else:
                     logger.warning("⚠️ No se pudo conectar a Solana, usando simulación")
                     self.client = None
-                    
+
             except Exception as e:
                 logger.error(f"❌ Error inicializando cliente Solana: {e}")
                 self.client = None
@@ -148,38 +150,35 @@ class SolanaBlockchainReal:
         """Cargar configuración desde variables de entorno"""
         if config:
             return config
-            
+
         # Cargar desde variables de entorno
         network = os.getenv("SOLANA_NETWORK", "devnet")
         rpc_url = os.getenv("SOLANA_RPC_URL")
         api_key = os.getenv("SOLANA_API_KEY")
         commitment = os.getenv("SOLANA_COMMITMENT", "confirmed")
         timeout = int(os.getenv("SOLANA_TIMEOUT", "30"))
-        
+
         config = SolanaConfig(
-            network=network,
-            commitment=commitment,
-            timeout=timeout,
-            api_key=api_key
+            network=network, commitment=commitment, timeout=timeout, api_key=api_key
         )
-        
+
         # Usar RPC URL personalizada si está configurada
         if rpc_url:
             config.rpc_url = rpc_url
-            
+
         return config
 
     def _test_connection(self) -> bool:
         """Probar conexión a Solana"""
         if not SOLANA_AVAILABLE or not self.client:
             return False
-            
+
         try:
             # Probar con una llamada simple
             response = self.client.get_slot()
-            if isinstance(response, dict) and 'result' in response:
+            if isinstance(response, dict) and "result" in response:
                 self.connection_available = True
-                slot_value = response['result']
+                slot_value = response["result"]
                 logger.info(f"✅ Conexión a Solana exitosa - Slot actual: {slot_value}")
                 return True
             else:
@@ -199,11 +198,19 @@ class SolanaBlockchainReal:
             slot = self.client.get_slot()
             epoch = self.client.get_epoch_info()
             version = self.client.get_version()
-            
-            slot_value = slot.get('result', 0) if isinstance(slot, dict) else 0
-            epoch_value = epoch.get('result', {}).get('epoch', 0) if isinstance(epoch, dict) else 0
-            version_value = version.get('result', {}).get('solana-core', 'unknown') if isinstance(version, dict) else 'unknown'
-            
+
+            slot_value = slot.get("result", 0) if isinstance(slot, dict) else 0
+            epoch_value = (
+                epoch.get("result", {}).get("epoch", 0)
+                if isinstance(epoch, dict)
+                else 0
+            )
+            version_value = (
+                version.get("result", {}).get("solana-core", "unknown")
+                if isinstance(version, dict)
+                else "unknown"
+            )
+
             return {
                 "network": self.config.network,
                 "rpc_url": self.config.rpc_url,
@@ -211,7 +218,7 @@ class SolanaBlockchainReal:
                 "current_slot": slot_value,
                 "current_epoch": epoch_value,
                 "version": version_value,
-                "connected": True
+                "connected": True,
             }
         except Exception as e:
             logger.error(f"❌ Error obteniendo info de red: {e}")
@@ -238,7 +245,9 @@ class SolanaBlockchainReal:
                 )
 
                 self.user_wallets[user_id] = wallet
-                logger.info(f"✅ Wallet real creada para usuario {user_id}: {public_key}")
+                logger.info(
+                    f"✅ Wallet real creada para usuario {user_id}: {public_key}"
+                )
                 return wallet
             else:
                 # Simulación
@@ -264,8 +273,8 @@ class SolanaBlockchainReal:
 
         try:
             response = self.client.get_balance(PublicKey(public_key))
-            if isinstance(response, dict) and 'result' in response:
-                balance_lamports = response['result']['value']
+            if isinstance(response, dict) and "result" in response:
+                balance_lamports = response["result"]["value"]
                 return balance_lamports / 1e9  # Convertir lamports a SOL
             return 0.0
         except Exception as e:
@@ -311,7 +320,7 @@ class SolanaBlockchainReal:
                         TransferParams(
                             from_pubkey=PublicKey(from_wallet.public_key),
                             to_pubkey=PublicKey(to_wallet.public_key),
-                            lamports=amount * 1e9  # Convertir tokens a lamports
+                            lamports=amount * 1e9,  # Convertir tokens a lamports
                         )
                     )
 
@@ -454,7 +463,7 @@ class SolanaBlockchainReal:
                 amount=amount,
                 token_type="SHEILY",
                 timestamp=datetime.now(),
-                status="confirmed"
+                status="confirmed",
             )
 
             # Actualizar balance

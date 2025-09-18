@@ -64,7 +64,7 @@ class BaseToolkit:
         """
         results = []
         for i in range(0, len(data), batch_size):
-            batch = data[i:i + batch_size]
+            batch = data[i : i + batch_size]
             batch_results = [processor(item) for item in batch]
             results.extend(batch_results)
         return results
@@ -90,7 +90,7 @@ class BaseToolkit:
             str: "",
             bool: False,
             list: [],
-            dict: {}
+            dict: {},
         }
 
         try:
@@ -157,7 +157,7 @@ def main():
         "normalized_data": normalized_data.tolist(),
         "processed_data": processed_data,
         "converted_data": converted_data,
-        "safe_division_result": result
+        "safe_division_result": result,
     }
 
 

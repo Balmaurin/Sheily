@@ -9,20 +9,21 @@ import json
 import os
 from typing import Dict, Any
 
+
 def load_rate_limits() -> Dict[str, Any]:
     """
     Cargar configuración de límites de velocidad
-    
+
     Returns:
         Dict con la configuración de rate limits
     """
     # Apuntar a la configuración centralizada desde el directorio raíz del proyecto
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(current_dir, '../../..'))
-    config_path = os.path.join(project_root, 'config', 'rate_limits.json')
-    
+    project_root = os.path.abspath(os.path.join(current_dir, "../../.."))
+    config_path = os.path.join(project_root, "config", "rate_limits.json")
+
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return {
@@ -34,9 +35,9 @@ def load_rate_limits() -> Dict[str, Any]:
                         "max_requests": 100,
                         "time_window": 3600,
                         "burst_limit": 20,
-                        "cooldown_period": 60
+                        "cooldown_period": 60,
                     },
-                    "enabled": True
+                    "enabled": True,
                 }
             ]
         }

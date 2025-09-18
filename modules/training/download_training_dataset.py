@@ -410,7 +410,7 @@ def _determine_domain(question, answer):
 
     # Combinar pregunta y respuesta para análisis
     text = (question + " " + answer).lower()
-    
+
     # Contar coincidencias
     scores = {
         "medical": sum(1 for word in medical_keywords if word in text),
@@ -419,7 +419,7 @@ def _determine_domain(question, answer):
         "scientific": sum(1 for word in scientific_keywords if word in text),
         "business": sum(1 for word in business_keywords if word in text),
     }
-    
+
     max_score = max(scores.values())
 
     # Retornar dominio con mayor puntuación o general si no hay coincidencias

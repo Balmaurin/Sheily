@@ -14,6 +14,7 @@ import time
 import json
 from datetime import datetime
 
+
 def test_gateway_health():
     """Prueba el endpoint de salud del gateway"""
     print("🔍 Probando endpoint de salud del Gateway...")
@@ -35,6 +36,7 @@ def test_gateway_health():
         print(f"❌ Error conectando con Gateway: {e}")
         return False
 
+
 def test_gateway_status():
     """Prueba el endpoint de status del gateway"""
     print("\n🔍 Probando endpoint de status del Gateway...")
@@ -54,6 +56,7 @@ def test_gateway_status():
         print(f"❌ Error obteniendo status: {e}")
         return False
 
+
 def test_query_processing():
     """Prueba el procesamiento de consultas"""
     print("\n🔍 Probando procesamiento de consultas...")
@@ -65,11 +68,13 @@ def test_query_processing():
             "domain": "ai",
             "max_tokens": 300,
             "temperature": 0.7,
-            "top_p": 0.9
+            "top_p": 0.9,
         }
 
         start_time = time.time()
-        response = requests.post("http://localhost:8080/query", json=payload, timeout=30)
+        response = requests.post(
+            "http://localhost:8080/query", json=payload, timeout=30
+        )
         end_time = time.time()
 
         if response.status_code == 200:
@@ -92,6 +97,7 @@ def test_query_processing():
         print(f"❌ Error procesando consulta: {e}")
         return False
 
+
 def test_llm_server():
     """Prueba directa del servidor LLM"""
     print("\n🔍 Probando servidor LLM directamente...")
@@ -106,6 +112,7 @@ def test_llm_server():
     except Exception as e:
         print(f"❌ Error conectando con LLM Server: {e}")
         return False
+
 
 def test_backend():
     """Prueba el backend API"""
@@ -122,11 +129,12 @@ def test_backend():
         print(f"❌ Error conectando con Backend: {e}")
         return False
 
+
 def main():
     """Función principal de pruebas"""
-    print("="*70)
+    print("=" * 70)
     print("🚀 PRUEBA DE INTEGRACIÓN - GATEWAY SHEILY AI")
-    print("="*70)
+    print("=" * 70)
     print(f"Fecha y hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
@@ -135,21 +143,21 @@ def main():
         ("LLM Server", test_llm_server),
         ("Gateway Health", test_gateway_health),
         ("Gateway Status", test_gateway_status),
-        ("Query Processing", test_query_processing)
+        ("Query Processing", test_query_processing),
     ]
 
     results = []
     for test_name, test_func in tests:
         print(f"\n{'='*50}")
         print(f"🧪 EJECUTANDO: {test_name}")
-        print('='*50)
+        print("=" * 50)
         success = test_func()
         results.append((test_name, success))
 
     # Resumen final
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("📊 RESUMEN DE PRUEBAS")
-    print("="*70)
+    print("=" * 70)
 
     successful = 0
     for test_name, success in results:
@@ -161,11 +169,16 @@ def main():
     print(f"\n📈 Resultado: {successful}/{len(results)} pruebas pasaron")
 
     if successful == len(results):
-        print("🎉 ¡Todas las pruebas pasaron! La integración está funcionando correctamente.")
+        print(
+            "🎉 ¡Todas las pruebas pasaron! La integración está funcionando correctamente."
+        )
         return True
     else:
-        print("⚠️ Algunas pruebas fallaron. Revisa los servicios que no están funcionando.")
+        print(
+            "⚠️ Algunas pruebas fallaron. Revisa los servicios que no están funcionando."
+        )
         return False
+
 
 if __name__ == "__main__":
     try:

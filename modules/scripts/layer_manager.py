@@ -112,7 +112,7 @@ class LayerManager:
         """Obtener estadísticas de las capas"""
         total_layers = len(self.layers)
         active_layers = len(self.active_layers)
-        
+
         avg_performance = (
             sum(layer["performance"] for layer in self.layers.values()) / total_layers
         )

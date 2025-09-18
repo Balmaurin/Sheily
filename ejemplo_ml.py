@@ -14,7 +14,9 @@ iris = load_iris()
 X, y = iris.data, iris.target
 
 # Dividir datos en entrenamiento y prueba
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42
+)
 
 # Escalar características
 scaler = StandardScaler()
@@ -29,8 +31,8 @@ modelo.fit(X_train_scaled, y_train)
 predicciones = modelo.predict(X_test_scaled)
 
 # Métricas de rendimiento
-print('Precisión del modelo:', accuracy_score(y_test, predicciones))
-print('\nMatriz de Confusión:')
+print("Precisión del modelo:", accuracy_score(y_test, predicciones))
+print("\nMatriz de Confusión:")
 print(confusion_matrix(y_test, predicciones))
-print('\nReporte de Clasificación:')
+print("\nReporte de Clasificación:")
 print(classification_report(y_test, predicciones, target_names=iris.target_names))

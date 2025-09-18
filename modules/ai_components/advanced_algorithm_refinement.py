@@ -51,7 +51,7 @@ class AlgorithmRefinementEngine:
             # Simulación de análisis de complejidad
             return complexity
         except ValueError as e:
-            print(fff"Error numérico analizando complejidad: {e}")
+            print(f"Error numérico analizando complejidad: {e}")
             return 1.0
 
     def refine_algorithm(self, algorithm_name: str) -> Dict[str, Any]:
@@ -91,10 +91,10 @@ class AlgorithmRefinementEngine:
 
     def get_refined_algorithms(self) -> List[Dict[str, Any]]:
         """
-        Obtener lista de algoritmos refinados.
+        Get list of refined algorithms.
 
         Returns:
-            List[Dict[str, Any]]: Lista de algoritmos refinados
+            List[Dict[str, Any]]: List of refined algorithms
         """
         return self.refined_algorithms
 

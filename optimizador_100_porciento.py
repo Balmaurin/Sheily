@@ -8,65 +8,67 @@ import requests
 import json
 from datetime import datetime
 
+
 def analyze_failing_endpoints():
     """Analizar endpoints que están fallando según los logs"""
-    
+
     print("🔍 ANÁLISIS DE ENDPOINTS FALLIDOS")
     print("=" * 60)
-    
+
     # Endpoints identificados como problemáticos en los logs
     failing_endpoints = [
         {
-            'endpoint': 'GET /api/models/available',
-            'error': 'SQLITE_ERROR: no such table: model_registry',
-            'status_code': 500,
-            'solution': 'Ya eliminado, usar /api/models/available/simple'
+            "endpoint": "GET /api/models/available",
+            "error": "SQLITE_ERROR: no such table: model_registry",
+            "status_code": 500,
+            "solution": "Ya eliminado, usar /api/models/available/simple",
         },
         {
-            'endpoint': 'POST /api/chat/qwen/history/:session_id/clear',
-            'error': 'Cliente Qwen no disponible',
-            'status_code': 503,
-            'solution': 'Eliminar - no funcional'
+            "endpoint": "POST /api/chat/qwen/history/:session_id/clear",
+            "error": "Cliente Qwen no disponible",
+            "status_code": 503,
+            "solution": "Eliminar - no funcional",
         },
         {
-            'endpoint': 'GET /api/chat/qwen/status',
-            'error': 'Cliente Qwen no disponible', 
-            'status_code': 503,
-            'solution': 'Eliminar - no funcional'
+            "endpoint": "GET /api/chat/qwen/status",
+            "error": "Cliente Qwen no disponible",
+            "status_code": 503,
+            "solution": "Eliminar - no funcional",
         },
         {
-            'endpoint': 'GET /api/chat/qwen/history/:session_id',
-            'error': 'Cliente Qwen no disponible',
-            'status_code': 503,
-            'solution': 'Eliminar - no funcional'
+            "endpoint": "GET /api/chat/qwen/history/:session_id",
+            "error": "Cliente Qwen no disponible",
+            "status_code": 503,
+            "solution": "Eliminar - no funcional",
         },
         {
-            'endpoint': 'POST /api/chat/qwen/cached',
-            'error': 'Se requiere el mensaje',
-            'status_code': 400,
-            'solution': 'Eliminar - no utilizado'
-        }
+            "endpoint": "POST /api/chat/qwen/cached",
+            "error": "Se requiere el mensaje",
+            "status_code": 400,
+            "solution": "Eliminar - no utilizado",
+        },
     ]
-    
+
     print("📋 ENDPOINTS PROBLEMÁTICOS IDENTIFICADOS:")
     for i, ep in enumerate(failing_endpoints, 1):
         print(f"{i}. {ep['endpoint']}")
         print(f"   ❌ Error: {ep['error']}")
         print(f"   🔧 Solución: {ep['solution']}")
         print()
-    
+
     return failing_endpoints
+
 
 def test_current_efficiency():
     """Probar eficiencia actual"""
-    
+
     print("🧪 PROBANDO EFICIENCIA ACTUAL...")
     print("-" * 60)
-    
+
     # Endpoints que deberían funcionar perfectamente
     working_endpoints = [
         "GET /api/health",
-        "GET /api/auth/tokens/simple", 
+        "GET /api/auth/tokens/simple",
         "GET /api/training/models",
         "GET /api/training/datasets",
         "GET /api/training/branches",
@@ -82,22 +84,24 @@ def test_current_efficiency():
         "GET /api/chat/stats",
         "GET /api/chat/health",
         "GET /api/admin/chat/metrics",
-        "GET /api/admin/chat/alerts", 
+        "GET /api/admin/chat/alerts",
         "GET /api/admin/chat/backups",
-        "POST /api/admin/chat/backup"
+        "POST /api/admin/chat/backup",
     ]
-    
+
     working = 0
     total = len(working_endpoints)
-    
+
     for endpoint in working_endpoints:
-        method, path = endpoint.split(' ', 1)
+        method, path = endpoint.split(" ", 1)
         try:
-            if method == 'GET':
+            if method == "GET":
                 response = requests.get(f"http://localhost:8000{path}", timeout=3)
             else:
-                response = requests.post(f"http://localhost:8000{path}", json={}, timeout=3)
-            
+                response = requests.post(
+                    f"http://localhost:8000{path}", json={}, timeout=3
+                )
+
             if response.status_code < 500:  # 200, 400, 401 son aceptables
                 working += 1
                 print(f"✅ {endpoint}")
@@ -105,18 +109,19 @@ def test_current_efficiency():
                 print(f"❌ {endpoint} - {response.status_code}")
         except:
             print(f"❌ {endpoint} - No responde")
-    
+
     efficiency = (working / total) * 100
     print(f"\n📊 Eficiencia actual: {working}/{total} = {efficiency:.1f}%")
-    
+
     return efficiency, working, total
+
 
 def create_perfect_backend():
     """Crear una versión perfecta del backend con solo endpoints funcionales"""
-    
+
     print("\n🎯 CREANDO BACKEND PERFECTO (100% EFICIENCIA)")
     print("-" * 60)
-    
+
     # Solo los endpoints que funcionan perfectamente
     perfect_endpoints = """
 // ===== BACKEND PERFECTO - SOLO ENDPOINTS FUNCIONALES =====
@@ -426,46 +431,56 @@ app.post('/api/admin/chat/backup', async (req, res) => {
   }
 });
 """
-    
+
     return perfect_endpoints
+
 
 def main():
     print("🎯 OPTIMIZADOR 100% EFICIENCIA - SHEILY AI")
     print("=" * 60)
     print("Objetivo: Conseguir 100% de eficiencia eliminando endpoints fallidos")
     print("=" * 60)
-    
+
     # 1. Analizar endpoints fallidos
     failing = analyze_failing_endpoints()
-    
+
     # 2. Probar eficiencia actual
     current_efficiency, working, total = test_current_efficiency()
-    
+
     # 3. Calcular cuántos endpoints eliminar
-    failing_count = len([ep for ep in failing if ep['status_code'] >= 500 or ep['status_code'] == 503])
-    
+    failing_count = len(
+        [ep for ep in failing if ep["status_code"] >= 500 or ep["status_code"] == 503]
+    )
+
     print(f"\n🎯 PLAN PARA 100% EFICIENCIA:")
     print(f"📊 Eficiencia actual: {current_efficiency:.1f}%")
     print(f"✅ Endpoints funcionando: {working}")
     print(f"❌ Endpoints fallidos: {total - working}")
     print(f"🗑️ Endpoints a eliminar: {failing_count}")
-    
-    projected_efficiency = (working / (total - failing_count)) * 100 if (total - failing_count) > 0 else 100
+
+    projected_efficiency = (
+        (working / (total - failing_count)) * 100
+        if (total - failing_count) > 0
+        else 100
+    )
     print(f"🎯 Eficiencia proyectada: {projected_efficiency:.1f}%")
-    
+
     if projected_efficiency >= 100:
         print(f"\n🎉 ¡OBJETIVO ALCANZABLE!")
         print(f"📋 Eliminar {failing_count} endpoints problemáticos")
-        print(f"✅ Mantener {working} endpoints funcionales") 
+        print(f"✅ Mantener {working} endpoints funcionales")
         print(f"🏆 Resultado: 100% de eficiencia")
-    
+
     # 4. Mostrar comandos para optimizar
     print(f"\n🚀 COMANDOS PARA CONSEGUIR 100%:")
     print(f"1. python3 limpieza_endpoints_manual.py  # Eliminar problemáticos")
-    print(f"2. pkill -f 'node.*server.js' && cd backend && node server.js &  # Reiniciar")
+    print(
+        f"2. pkill -f 'node.*server.js' && cd backend && node server.js &  # Reiniciar"
+    )
     print(f"3. python3 verificacion_perfecta_20_de_20.py  # Verificar 100%")
-    
+
     return current_efficiency
+
 
 if __name__ == "__main__":
     main()

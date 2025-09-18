@@ -2,7 +2,7 @@
 """
 🚀 Módulo de Mejora Automática de Sistemas de IA
 
-Sistema automatizado para elevar la calidad de módulos 
+Sistema automatizado para elevar la calidad de módulos
 de inteligencia artificial a estándares científicos.
 
 Características Principales:
@@ -32,24 +32,24 @@ import astroid
 import black
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s'
+    level=logging.INFO, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 class ModuleEnhancer:
     """
     Sistema de mejora automática de módulos de IA.
     """
-    
+
     @staticmethod
     def load_module(module_path: str):
         """
         Cargar módulo de manera segura.
-        
+
         Args:
             module_path (str): Ruta completa al módulo
-        
+
         Returns:
             Módulo importado
         """
@@ -67,66 +67,63 @@ class ModuleEnhancer:
     def analyze_module_structure(module):
         """
         Analizar estructura del módulo.
-        
+
         Args:
             module (module): Módulo a analizar
-        
+
         Returns:
             Diccionario con estructura del módulo
         """
-        module_info = {
-            "classes": [],
-            "functions": [],
-            "global_variables": []
-        }
-        
+        module_info = {"classes": [], "functions": [], "global_variables": []}
+
         for name, obj in inspect.getmembers(module):
             if inspect.isclass(obj):
-                module_info["classes"].append({
-                    "name": name,
-                    "methods": [m for m in dir(obj) if not m.startswith('__')]
-                })
+                module_info["classes"].append(
+                    {
+                        "name": name,
+                        "methods": [m for m in dir(obj) if not m.startswith("__")],
+                    }
+                )
             elif inspect.isfunction(obj):
-                module_info["functions"].append({
-                    "name": name,
-                    "signature": str(inspect.signature(obj))
-                })
-            elif not name.startswith('__'):
+                module_info["functions"].append(
+                    {"name": name, "signature": str(inspect.signature(obj))}
+                )
+            elif not name.startswith("__"):
                 module_info["global_variables"].append(name)
-        
+
         return module_info
 
     @staticmethod
     def transform_module(module_path: str) -> str:
         """
         Transformar módulo con mejoras sistemáticas.
-        
+
         Args:
             module_path (str): Ruta al módulo
-        
+
         Returns:
             Código del módulo mejorado
         """
-        with open(module_path, 'r') as f:
+        with open(module_path, "r") as f:
             source_code = f.read()
-        
+
         # Transformaciones
         transformations = [
             ModuleEnhancer._add_logging,
             ModuleEnhancer._add_type_hints,
             ModuleEnhancer._improve_error_handling,
-            ModuleEnhancer._add_experimental_validation
+            ModuleEnhancer._add_experimental_validation,
         ]
-        
+
         for transform in transformations:
             source_code = transform(source_code)
-        
+
         # Formateo con Black
         try:
             source_code = black.format_str(source_code, mode=black.FileMode())
         except Exception as e:
             logger.warning(f"Error formateando código: {e}")
-        
+
         return source_code
 
     @staticmethod
@@ -154,10 +151,10 @@ logger = logging.getLogger(__name__)
             for node in ast.walk(module):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     if not node.returns:
-                        node.returns = ast.Name(id='Any', ctx=ast.Load())
+                        node.returns = ast.Name(id="Any", ctx=ast.Load())
                     for arg in node.args.args:
                         if not arg.annotation:
-                            arg.annotation = ast.Name(id='Any', ctx=ast.Load())
+                            arg.annotation = ast.Name(id="Any", ctx=ast.Load())
             return astor.to_source(module)
         except Exception as e:
             logger.warning(f"Error añadiendo type hints: {e}")
@@ -175,30 +172,38 @@ logger = logging.getLogger(__name__)
                         body=node.body,
                         handlers=[
                             ast.ExceptHandler(
-                                type=ast.Name(id='Exception', ctx=ast.Load()),
-                                name='e',
+                                type=ast.Name(id="Exception", ctx=ast.Load()),
+                                name="e",
                                 body=[
                                     ast.Expr(
                                         value=ast.Call(
                                             func=ast.Attribute(
-                                                value=ast.Name(id='logger', ctx=ast.Load()),
-                                                attr='error',
-                                                ctx=ast.Load()
+                                                value=ast.Name(
+                                                    id="logger", ctx=ast.Load()
+                                                ),
+                                                attr="error",
+                                                ctx=ast.Load(),
                                             ),
-                                            args=[ast.Call(
-                                                func=ast.Name(id='str', ctx=ast.Load()),
-                                                args=[ast.Name(id='e', ctx=ast.Load())],
-                                                keywords=[]
-                                            )],
-                                            keywords=[]
+                                            args=[
+                                                ast.Call(
+                                                    func=ast.Name(
+                                                        id="str", ctx=ast.Load()
+                                                    ),
+                                                    args=[
+                                                        ast.Name(id="e", ctx=ast.Load())
+                                                    ],
+                                                    keywords=[],
+                                                )
+                                            ],
+                                            keywords=[],
                                         )
                                     ),
-                                    ast.Raise(exc=None, cause=None)
-                                ]
+                                    ast.Raise(exc=None, cause=None),
+                                ],
                             )
                         ],
                         finalbody=[],
-                        orelse=[]
+                        orelse=[],
                     )
                     node.body = [try_block]
             return astor.to_source(module)
@@ -253,51 +258,53 @@ def experimental_validation(data, model=None):
     def enhance_module(self, module_path: str, output_path: str = None):
         """
         Método principal de mejora de módulo.
-        
+
         Args:
             module_path (str): Ruta al módulo original
             output_path (str, opcional): Ruta de salida del módulo mejorado
-        
+
         Returns:
             Ruta del módulo mejorado
         """
         try:
             # Cargar módulo
             module = self.load_module(module_path)
-            
+
             # Analizar estructura
             module_structure = self.analyze_module_structure(module)
             logger.info(f"Estructura del módulo: {module_structure}")
-            
+
             # Transformar código
             enhanced_code = self.transform_module(module_path)
-            
+
             # Guardar módulo mejorado
-            output_path = output_path or module_path.replace('.py', '_enhanced.py')
-            with open(output_path, 'w') as f:
+            output_path = output_path or module_path.replace(".py", "_enhanced.py")
+            with open(output_path, "w") as f:
                 f.write(enhanced_code)
-            
+
             logger.info(f"Módulo mejorado guardado en: {output_path}")
             return output_path
-        
+
         except Exception as e:
             logger.error(f"Error en mejora de módulo: {e}")
             raise
+
 
 def main():
     """
     Punto de entrada para mejora de módulo.
     """
     import sys
-    
+
     if len(sys.argv) < 2:
         print("Uso: python module_enhancer.py <ruta_modulo>")
         sys.exit(1)
-    
+
     module_path = sys.argv[1]
     enhancer = ModuleEnhancer()
     enhanced_module = enhancer.enhance_module(module_path)
     print(f"Módulo mejorado: {enhanced_module}")
+
 
 if __name__ == "__main__":
     main()

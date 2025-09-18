@@ -214,7 +214,7 @@ class SheilyTokensSystem:
         try:
             # Validar que la sesión es elegible para tokens
             if not await self._validate_session_eligibility(session, quality_score):
-                logging.warning(fff"❌ Sesión {session.id} no elegible para tokens")
+                logging.warning(f"❌ Sesión {session.id} no elegible para tokens")
                 return []
 
             # Verificar límites antifraude
@@ -302,6 +302,8 @@ class SheilyTokensSystem:
 
             # Calcular tokens basados en calidad y longitud
             base_tokens = 5
+            quality_multiplier = response_quality
+            length_bonus = min(
                 response_length // 100, 10
             )  # Máximo 10 tokens por longitud
 
@@ -439,21 +441,26 @@ class SheilyTokensSystem:
         try:
             # Obtener registro de staking
             staking_record = await self._get_staking_record(staking_id)
-            if not staking_record or staking_record["user_idff"] != user_id:
+            if not staking_record or staking_record["user_id"] != user_id:
                 return {"success": False, "error": "Staking no encontrado"}
 
-            if staking_record["status"] != "activeff":
+            if staking_record["status"] != "active":
                 return {"success": False, "error": "Staking no activo"}
-
-            # Calcular recompensas
 
             # Calcular recompensas
             if current_date >= end_date:
                 # Staking completado, recompensas completas
+                rewards = (
+                    staking_record["amount"]
+                    * (staking_record["apy"] / 365)
+                    * duration_days
+                )
             else:
                 # Staking temprano, aplicar penalización
+                penalty = staking_record["amount"] * 0.1  # 10% penalty
+                rewards = (
                     staking_record["amount"]
-                    * (staking_record["apyf"] / 365)
+                    * (staking_record["apy"] / 365)
                     * duration_days
                 ) - penalty
 

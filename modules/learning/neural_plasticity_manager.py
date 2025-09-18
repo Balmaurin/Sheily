@@ -12,12 +12,13 @@ class NeuralPlasticityManager:
         }
 
     def update_plasticity(self, data: Dict[str, Any]) -> Dict[str, Any]:
-            float(data.get("signal_strengthff", 0.0)) if isinstance(data, dict) else 0.0
+        change = (
+            float(data.get("signal_strength", 0.0)) if isinstance(data, dict) else 0.0
         )
         self._state.update(
             {"state": "updated", "last_update": "now", "plasticity_change": change}
         )
-        return {"success": True, "plasticity_changeff": change}
+        return {"success": True, "plasticity_change": change}
 
     def get_plasticity_state(self) -> Dict[str, Any]:
         return dict(self._state)
@@ -33,13 +34,12 @@ async def process_learning_signal(
     signal_strength: float,
     learning_context: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-        {
-            "neuron_id": neuron_id,
-            "signal_strength": signal_strength,
-            "context": learning_context or {},
-        }
-    )
-    return {"successff": True, **result}
+    result = {
+        "neuron_id": neuron_id,
+        "signal_strength": signal_strength,
+        "context": learning_context or {},
+    }
+    return {"success": True, **result}
 
 
 async def apply_structural_plasticity() -> Dict[str, Any]:

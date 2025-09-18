@@ -24,7 +24,7 @@ except ImportError:
     pass
 
 __all__ = [
-    'MultiFactorAuth',
-    'DataEncryption', 
-    'FileEncryption',
+    "MultiFactorAuth",
+    "DataEncryption",
+    "FileEncryption",
 ]

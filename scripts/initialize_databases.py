@@ -13,29 +13,31 @@ from typing import List, Dict, Any
 
 # Configurar logging
 logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(levelname)s: %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 class DatabaseInitializer:
     """Inicializador de bases de datos para NeuroFusion"""
 
-    def __init__(self, 
-                 postgres_config: Dict[str, str] = None, 
-                 sqlite_path: str = 'data/neurofusion.db'):
+    def __init__(
+        self,
+        postgres_config: Dict[str, str] = None,
+        sqlite_path: str = "data/neurofusion.db",
+    ):
         """
         Inicializar configuraciones de bases de datos
-        
+
         Args:
             postgres_config: Configuración de conexión PostgreSQL
             sqlite_path: Ruta de la base de datos SQLite
         """
         self.postgres_config = postgres_config or {
-            'host': 'localhost',
-            'database': 'neurofusion_db',
-            'user': 'neurofusion_user',
-            'password': 'neurofusion_pass'
+            "host": "localhost",
+            "database": "neurofusion_db",
+            "user": "neurofusion_user",
+            "password": "neurofusion_pass",
         }
         self.sqlite_path = sqlite_path
 
@@ -44,24 +46,30 @@ class DatabaseInitializer:
         try:
             # Conectar a PostgreSQL por defecto
             conn = psycopg2.connect(
-                host=self.postgres_config['host'],
-                user=self.postgres_config['user'],
-                password=self.postgres_config['password'],
-                database='postgres'
+                host=self.postgres_config["host"],
+                user=self.postgres_config["user"],
+                password=self.postgres_config["password"],
+                database="postgres",
             )
             conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-            
+
             with conn.cursor() as cur:
                 # Verificar si la base de datos existe
-                cur.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{self.postgres_config['database']}'")
+                cur.execute(
+                    f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{self.postgres_config['database']}'"
+                )
                 exists = cur.fetchone()
-                
+
                 if not exists:
                     cur.execute(f"CREATE DATABASE {self.postgres_config['database']}")
-                    logger.info(f"✅ Base de datos PostgreSQL {self.postgres_config['database']} creada")
+                    logger.info(
+                        f"✅ Base de datos PostgreSQL {self.postgres_config['database']} creada"
+                    )
                 else:
-                    logger.info(f"✅ Base de datos PostgreSQL {self.postgres_config['database']} ya existe")
-            
+                    logger.info(
+                        f"✅ Base de datos PostgreSQL {self.postgres_config['database']} ya existe"
+                    )
+
             conn.close()
         except Exception as e:
             logger.error(f"❌ Error creando base de datos PostgreSQL: {e}")
@@ -74,7 +82,8 @@ class DatabaseInitializer:
             cursor = conn.cursor()
 
             # Crear tablas de ejemplo
-            cursor.executescript('''
+            cursor.executescript(
+                """
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
@@ -98,18 +107,19 @@ class DatabaseInitializer:
                     end_time DATETIME,
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 );
-            ''')
+            """
+            )
 
             # Insertar datos de prueba
             test_users = [
-                ('admin', 'admin@neurofusion.ai'),
-                ('usuario1', 'usuario1@neurofusion.ai'),
-                ('usuario2', 'usuario2@neurofusion.ai')
+                ("admin", "admin@neurofusion.ai"),
+                ("usuario1", "usuario1@neurofusion.ai"),
+                ("usuario2", "usuario2@neurofusion.ai"),
             ]
 
             cursor.executemany(
-                'INSERT OR IGNORE INTO users (username, email) VALUES (?, ?)', 
-                test_users
+                "INSERT OR IGNORE INTO users (username, email) VALUES (?, ?)",
+                test_users,
             )
 
             conn.commit()
@@ -134,7 +144,9 @@ class DatabaseInitializer:
             session = Session()
 
             # Crear tablas con SQLAlchemy
-            session.execute(text('''
+            session.execute(
+                text(
+                    """
                 CREATE TABLE IF NOT EXISTS knowledge_base (
                     id SERIAL PRIMARY KEY,
                     domain TEXT NOT NULL,
@@ -150,16 +162,22 @@ class DatabaseInitializer:
                     metadata JSONB,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-            '''))
+            """
+                )
+            )
 
             # Insertar datos de prueba
-            session.execute(text('''
+            session.execute(
+                text(
+                    """
                 INSERT INTO knowledge_base (domain, content) 
                 VALUES 
                     ('inteligencia_artificial', 'La inteligencia artificial es un campo de la computación que busca crear sistemas inteligentes.'),
                     ('ciencia', 'La ciencia es un sistema de conocimiento basado en métodos empíricos y verificables.')
                 ON CONFLICTS DO NOTHING;
-            '''))
+            """
+                )
+            )
 
             session.commit()
             session.close()
@@ -184,6 +202,7 @@ class DatabaseInitializer:
             logger.error(f"❌ Error en inicialización de bases de datos: {e}")
             raise
 
+
 def main():
     """Función principal para ejecutar la inicialización"""
     try:
@@ -192,6 +211,7 @@ def main():
     except Exception as e:
         logger.error(f"Error crítico: {e}")
         exit(1)
+
 
 if __name__ == "__main__":
     main()

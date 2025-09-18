@@ -14,13 +14,15 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+
 class QualityTier(Enum):
-    EXCELLENT = "excellent"    # >95% calidad
-    HIGH = "high"             # 90-95% calidad
-    GOOD = "good"             # 80-90% calidad
-    AVERAGE = "average"       # 70-80% calidad
-    LOW = "low"              # 60-70% calidad
-    POOR = "poor"            # <60% calidad
+    EXCELLENT = "excellent"  # >95% calidad
+    HIGH = "high"  # 90-95% calidad
+    GOOD = "good"  # 80-90% calidad
+    AVERAGE = "average"  # 70-80% calidad
+    LOW = "low"  # 60-70% calidad
+    POOR = "poor"  # <60% calidad
+
 
 class ContentCategory(Enum):
     CREATIVE = "creative"
@@ -30,9 +32,11 @@ class ContentCategory(Enum):
     PROFESSIONAL = "professional"
     PERSONAL = "personal"
 
+
 @dataclass
 class FilteredDataset:
     """Dataset filtrado y optimizado"""
+
     id: str
     name: str
     description: str
@@ -46,9 +50,11 @@ class FilteredDataset:
     diversity_score: float = 0.0
     coverage_score: float = 0.0
 
+
 @dataclass
 class ModelBranch:
     """Rama de modelo personal"""
+
     id: str
     name: str
     base_model: str
@@ -59,6 +65,7 @@ class ModelBranch:
     created_at: datetime = field(default_factory=datetime.now)
     last_updated: datetime = field(default_factory=datetime.now)
     is_active: bool = False
+
 
 class SmartFilteringSystem:
     """
@@ -74,11 +81,12 @@ class SmartFilteringSystem:
             QualityTier.GOOD: 80,
             QualityTier.AVERAGE: 70,
             QualityTier.LOW: 60,
-            QualityTier.POOR: 0
+            QualityTier.POOR: 0,
         }
 
-    def analyze_and_filter_responses(self, responses: List[Dict[str, Any]],
-                                   exercise_config: Dict[str, Any]) -> Dict[str, Any]:
+    def analyze_and_filter_responses(
+        self, responses: List[Dict[str, Any]], exercise_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Analiza y filtra respuestas para crear datasets optimizados
 
@@ -114,32 +122,36 @@ class SmartFilteringSystem:
             )
 
             return {
-                'datasets': datasets,
-                'quality_analysis': quality_analysis,
-                'improvement_metrics': improvement_metrics,
-                'branch_recommendations': branch_recommendations,
-                'total_responses': len(responses),
-                'filtered_responses': len(high_quality_responses),
-                'filtration_rate': len(high_quality_responses) / len(responses) if responses else 0,
-                'timestamp': datetime.now().isoformat()
+                "datasets": datasets,
+                "quality_analysis": quality_analysis,
+                "improvement_metrics": improvement_metrics,
+                "branch_recommendations": branch_recommendations,
+                "total_responses": len(responses),
+                "filtered_responses": len(high_quality_responses),
+                "filtration_rate": (
+                    len(high_quality_responses) / len(responses) if responses else 0
+                ),
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Error en análisis y filtrado: {e}")
             return {
-                'error': str(e),
-                'datasets': [],
-                'quality_analysis': {},
-                'improvement_metrics': {},
-                'branch_recommendations': []
+                "error": str(e),
+                "datasets": [],
+                "quality_analysis": {},
+                "improvement_metrics": {},
+                "branch_recommendations": [],
             }
 
-    def _analyze_response_quality(self, responses: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_response_quality(
+        self, responses: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Analiza la calidad de todas las respuestas"""
         if not responses:
             return {}
 
-        quality_scores = [r.get('qualityScore', 0) for r in responses]
+        quality_scores = [r.get("qualityScore", 0) for r in responses]
         quality_distribution = defaultdict(int)
 
         for score in quality_scores:
@@ -150,40 +162,42 @@ class SmartFilteringSystem:
 
         # Calcular estadísticas
         stats = {
-            'total_responses': len(responses),
-            'avg_quality_score': np.mean(quality_scores),
-            'median_quality_score': np.median(quality_scores),
-            'std_quality_score': np.std(quality_scores),
-            'min_quality_score': min(quality_scores),
-            'max_quality_score': max(quality_scores),
-            'quality_distribution': dict(quality_distribution)
+            "total_responses": len(responses),
+            "avg_quality_score": np.mean(quality_scores),
+            "median_quality_score": np.median(quality_scores),
+            "std_quality_score": np.std(quality_scores),
+            "min_quality_score": min(quality_scores),
+            "max_quality_score": max(quality_scores),
+            "quality_distribution": dict(quality_distribution),
         }
 
         # Análisis de tendencias
-        stats['quality_trends'] = self._analyze_quality_trends(responses)
+        stats["quality_trends"] = self._analyze_quality_trends(responses)
 
         return stats
 
-    def _filter_high_quality_responses(self, responses: List[Dict[str, Any]],
-                                     quality_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _filter_high_quality_responses(
+        self, responses: List[Dict[str, Any]], quality_analysis: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Filtra respuestas de alta calidad"""
         min_quality_threshold = 80  # 80% mínimo para datasets
 
         high_quality = []
         for response in responses:
-            score = response.get('qualityScore', 0)
+            score = response.get("qualityScore", 0)
             if score >= min_quality_threshold:
                 high_quality.append(response)
 
         # Ordenar por calidad descendente
-        high_quality.sort(key=lambda x: x.get('qualityScore', 0), reverse=True)
+        high_quality.sort(key=lambda x: x.get("qualityScore", 0), reverse=True)
 
         # Limitar a las mejores respuestas (top 50% o máximo 1000)
         max_responses = min(len(high_quality) // 2, 1000)
         return high_quality[:max_responses]
 
-    def _create_optimized_datasets(self, responses: List[Dict[str, Any]],
-                                 exercise_config: Dict[str, Any]) -> List[FilteredDataset]:
+    def _create_optimized_datasets(
+        self, responses: List[Dict[str, Any]], exercise_config: Dict[str, Any]
+    ) -> List[FilteredDataset]:
         """Crea datasets optimizados por categorías"""
         datasets = []
 
@@ -201,7 +215,9 @@ class SmartFilteringSystem:
                 continue
 
             # Determinar tier de calidad promedio
-            avg_quality = np.mean([r.get('qualityScore', 0) for r in category_responses])
+            avg_quality = np.mean(
+                [r.get("qualityScore", 0) for r in category_responses]
+            )
             quality_tier = self._determine_quality_tier(avg_quality)
 
             # Calcular métricas del dataset
@@ -216,14 +232,18 @@ class SmartFilteringSystem:
                 quality_tier=quality_tier,
                 entries=category_responses,
                 metadata={
-                    'exercise_config': exercise_config,
-                    'creation_method': 'smart_filtering',
-                    'quality_filters_applied': ['score_threshold', 'diversity_check', 'relevance_filter']
+                    "exercise_config": exercise_config,
+                    "creation_method": "smart_filtering",
+                    "quality_filters_applied": [
+                        "score_threshold",
+                        "diversity_check",
+                        "relevance_filter",
+                    ],
                 },
                 size=len(category_responses),
                 avg_quality_score=avg_quality,
-                diversity_score=dataset_metrics['diversity_score'],
-                coverage_score=dataset_metrics['coverage_score']
+                diversity_score=dataset_metrics["diversity_score"],
+                coverage_score=dataset_metrics["coverage_score"],
             )
 
             datasets.append(dataset)
@@ -231,11 +251,12 @@ class SmartFilteringSystem:
 
         return datasets
 
-    def _determine_content_category(self, response: Dict[str, Any],
-                                  exercise_config: Dict[str, Any]) -> ContentCategory:
+    def _determine_content_category(
+        self, response: Dict[str, Any], exercise_config: Dict[str, Any]
+    ) -> ContentCategory:
         """Determina la categoría de contenido de una respuesta"""
         # Usar categoría del ejercicio si existe
-        exercise_category = exercise_config.get('category', '').lower()
+        exercise_category = exercise_config.get("category", "").lower()
         if exercise_category:
             try:
                 return ContentCategory(exercise_category)
@@ -243,16 +264,58 @@ class SmartFilteringSystem:
                 pass
 
         # Análisis automático basado en contenido
-        content = response.get('response', '').lower()
+        content = response.get("response", "").lower()
 
         # Palabras clave por categoría
         category_keywords = {
-            ContentCategory.CREATIVE: ['imagina', 'crea', 'diseña', 'inventa', 'fantasía', 'historia'],
-            ContentCategory.TECHNICAL: ['código', 'programa', 'algoritmo', 'sistema', 'tecnología', 'api'],
-            ContentCategory.ANALYTICAL: ['analiza', 'compara', 'evalúa', 'diferencia', 'pros', 'contras'],
-            ContentCategory.EDUCATIONAL: ['explica', 'enseña', 'aprende', 'concepto', 'definición', 'ejemplo'],
-            ContentCategory.PROFESSIONAL: ['empresa', 'trabajo', 'proyecto', 'cliente', 'reunión', 'estrategia'],
-            ContentCategory.PERSONAL: ['yo', 'mi', 'personal', 'vida', 'experiencia', 'sentimiento']
+            ContentCategory.CREATIVE: [
+                "imagina",
+                "crea",
+                "diseña",
+                "inventa",
+                "fantasía",
+                "historia",
+            ],
+            ContentCategory.TECHNICAL: [
+                "código",
+                "programa",
+                "algoritmo",
+                "sistema",
+                "tecnología",
+                "api",
+            ],
+            ContentCategory.ANALYTICAL: [
+                "analiza",
+                "compara",
+                "evalúa",
+                "diferencia",
+                "pros",
+                "contras",
+            ],
+            ContentCategory.EDUCATIONAL: [
+                "explica",
+                "enseña",
+                "aprende",
+                "concepto",
+                "definición",
+                "ejemplo",
+            ],
+            ContentCategory.PROFESSIONAL: [
+                "empresa",
+                "trabajo",
+                "proyecto",
+                "cliente",
+                "reunión",
+                "estrategia",
+            ],
+            ContentCategory.PERSONAL: [
+                "yo",
+                "mi",
+                "personal",
+                "vida",
+                "experiencia",
+                "sentimiento",
+            ],
         }
 
         # Contar coincidencias
@@ -271,43 +334,51 @@ class SmartFilteringSystem:
                 return tier
         return QualityTier.POOR
 
-    def _calculate_dataset_metrics(self, responses: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _calculate_dataset_metrics(
+        self, responses: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Calcula métricas avanzadas del dataset"""
         if not responses:
-            return {'diversity_score': 0, 'coverage_score': 0}
+            return {"diversity_score": 0, "coverage_score": 0}
 
         # Diversidad: variación en longitudes y vocabulario
-        lengths = [len(r.get('response', '')) for r in responses]
+        lengths = [len(r.get("response", "")) for r in responses]
         length_variance = np.var(lengths) if lengths else 0
         diversity_score = min(100, length_variance / 1000)  # Normalizar
 
         # Cobertura: qué tan bien cubre diferentes aspectos
         all_words = []
         for response in responses:
-            words = response.get('response', '').lower().split()
+            words = response.get("response", "").lower().split()
             all_words.extend(words)
 
         word_freq = Counter(all_words)
         unique_words = len(word_freq)
 
         # Métrica de cobertura: palabras únicas vs total
-        coverage_score = min(100, (unique_words / len(all_words)) * 200) if all_words else 0
+        coverage_score = (
+            min(100, (unique_words / len(all_words)) * 200) if all_words else 0
+        )
 
         return {
-            'diversity_score': diversity_score,
-            'coverage_score': coverage_score,
-            'unique_words': unique_words,
-            'total_words': len(all_words),
-            'avg_response_length': np.mean(lengths) if lengths else 0
+            "diversity_score": diversity_score,
+            "coverage_score": coverage_score,
+            "unique_words": unique_words,
+            "total_words": len(all_words),
+            "avg_response_length": np.mean(lengths) if lengths else 0,
         }
 
-    def _analyze_quality_trends(self, responses: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_quality_trends(
+        self, responses: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Analiza tendencias de calidad en el tiempo"""
         if not responses:
             return {}
 
         # Ordenar por timestamp
-        sorted_responses = sorted(responses, key=lambda x: x.get('timestamp', datetime.now()))
+        sorted_responses = sorted(
+            responses, key=lambda x: x.get("timestamp", datetime.now())
+        )
 
         # Calcular promedio móvil de calidad
         window_size = 10
@@ -315,38 +386,46 @@ class SmartFilteringSystem:
 
         for i in range(len(sorted_responses)):
             start_idx = max(0, i - window_size + 1)
-            window = sorted_responses[start_idx:i+1]
-            avg_quality = np.mean([r.get('qualityScore', 0) for r in window])
+            window = sorted_responses[start_idx : i + 1]
+            avg_quality = np.mean([r.get("qualityScore", 0) for r in window])
             moving_avg.append(avg_quality)
 
         return {
-            'moving_average': moving_avg,
-            'trend_direction': 'improving' if moving_avg[-1] > moving_avg[0] else 'declining',
-            'volatility': np.std(moving_avg) if moving_avg else 0
+            "moving_average": moving_avg,
+            "trend_direction": (
+                "improving" if moving_avg[-1] > moving_avg[0] else "declining"
+            ),
+            "volatility": np.std(moving_avg) if moving_avg else 0,
         }
 
-    def _calculate_improvement_metrics(self, original: List[Dict[str, Any]],
-                                     filtered: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _calculate_improvement_metrics(
+        self, original: List[Dict[str, Any]], filtered: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Calcula métricas de mejora después del filtrado"""
         if not original:
             return {}
 
-        original_avg = np.mean([r.get('qualityScore', 0) for r in original])
-        filtered_avg = np.mean([r.get('qualityScore', 0) for r in filtered])
+        original_avg = np.mean([r.get("qualityScore", 0) for r in original])
+        filtered_avg = np.mean([r.get("qualityScore", 0) for r in filtered])
 
         improvement = {
-            'original_avg_quality': original_avg,
-            'filtered_avg_quality': filtered_avg,
-            'quality_improvement': filtered_avg - original_avg,
-            'improvement_percentage': ((filtered_avg - original_avg) / original_avg) * 100 if original_avg > 0 else 0,
-            'filtration_efficiency': len(filtered) / len(original),
-            'data_reduction_ratio': 1 - (len(filtered) / len(original))
+            "original_avg_quality": original_avg,
+            "filtered_avg_quality": filtered_avg,
+            "quality_improvement": filtered_avg - original_avg,
+            "improvement_percentage": (
+                ((filtered_avg - original_avg) / original_avg) * 100
+                if original_avg > 0
+                else 0
+            ),
+            "filtration_efficiency": len(filtered) / len(original),
+            "data_reduction_ratio": 1 - (len(filtered) / len(original)),
         }
 
         return improvement
 
-    def _generate_branch_recommendations(self, datasets: List[FilteredDataset],
-                                       exercise_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _generate_branch_recommendations(
+        self, datasets: List[FilteredDataset], exercise_config: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Genera recomendaciones para ramas de modelos"""
         recommendations = []
 
@@ -354,34 +433,36 @@ class SmartFilteringSystem:
             # Recomendaciones basadas en el dataset
             if dataset.quality_tier in [QualityTier.EXCELLENT, QualityTier.HIGH]:
                 recommendation = {
-                    'dataset_id': dataset.id,
-                    'recommended_action': 'create_branch',
-                    'branch_name': f"branch_{dataset.category.value}_{dataset.quality_tier.value}",
-                    'training_config': {
-                        'base_model': 'meta-llama/Llama-3.1-8B-Instruct',
-                        'dataset': dataset.id,
-                        'learning_rate': 2e-5,
-                        'epochs': 3,
-                        'batch_size': 4,
-                        'specialization': dataset.category.value
+                    "dataset_id": dataset.id,
+                    "recommended_action": "create_branch",
+                    "branch_name": f"branch_{dataset.category.value}_{dataset.quality_tier.value}",
+                    "training_config": {
+                        "base_model": "meta-llama/Llama-3.1-8B-Instruct",
+                        "dataset": dataset.id,
+                        "learning_rate": 2e-5,
+                        "epochs": 3,
+                        "batch_size": 4,
+                        "specialization": dataset.category.value,
                     },
-                    'expected_improvement': f"+{dataset.avg_quality_score - 70:.1f}% en {dataset.category.value}",
-                    'confidence': 'high' if dataset.size > 50 else 'medium'
+                    "expected_improvement": f"+{dataset.avg_quality_score - 70:.1f}% en {dataset.category.value}",
+                    "confidence": "high" if dataset.size > 50 else "medium",
                 }
                 recommendations.append(recommendation)
 
         return recommendations
 
-    def create_model_branch(self, branch_config: Dict[str, Any]) -> Optional[ModelBranch]:
+    def create_model_branch(
+        self, branch_config: Dict[str, Any]
+    ) -> Optional[ModelBranch]:
         """Crea una nueva rama de modelo basada en datasets filtrados"""
         try:
             branch = ModelBranch(
                 id=f"branch_{int(datetime.now().timestamp())}",
-                name=branch_config['name'],
-                base_model=branch_config['base_model'],
-                datasets_used=branch_config['datasets'],
-                training_config=branch_config['training_config'],
-                performance_metrics={}
+                name=branch_config["name"],
+                base_model=branch_config["base_model"],
+                datasets_used=branch_config["datasets"],
+                training_config=branch_config["training_config"],
+                performance_metrics={},
             )
 
             self.model_branches[branch.id] = branch
@@ -397,20 +478,29 @@ class SmartFilteringSystem:
         # Por ahora, retornar recomendaciones generales
         return [
             {
-                'type': 'specialization_branch',
-                'title': 'Rama de Escritura Creativa',
-                'description': 'Especializa tu IA en generación de contenido creativo',
-                'datasets_needed': 100,
-                'expected_benefits': ['Mejor creatividad', 'Más variedad en respuestas', 'Estilo único']
+                "type": "specialization_branch",
+                "title": "Rama de Escritura Creativa",
+                "description": "Especializa tu IA en generación de contenido creativo",
+                "datasets_needed": 100,
+                "expected_benefits": [
+                    "Mejor creatividad",
+                    "Más variedad en respuestas",
+                    "Estilo único",
+                ],
             },
             {
-                'type': 'technical_branch',
-                'title': 'Rama Técnica Avanzada',
-                'description': 'Mejora las capacidades técnicas de tu IA',
-                'datasets_needed': 150,
-                'expected_benefits': ['Código más preciso', 'Explicaciones técnicas', 'Solución de problemas']
-            }
+                "type": "technical_branch",
+                "title": "Rama Técnica Avanzada",
+                "description": "Mejora las capacidades técnicas de tu IA",
+                "datasets_needed": 150,
+                "expected_benefits": [
+                    "Código más preciso",
+                    "Explicaciones técnicas",
+                    "Solución de problemas",
+                ],
+            },
         ]
+
 
 # Instancia global del sistema de filtrado
 smart_filtering_system = SmartFilteringSystem()

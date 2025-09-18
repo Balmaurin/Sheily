@@ -20,9 +20,11 @@ import uvicorn
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 # Modelos
 class WalletRequest(BaseModel):
     user_id: str
+
 
 class TransferRequest(BaseModel):
     from_wallet: str
@@ -30,11 +32,12 @@ class TransferRequest(BaseModel):
     amount: float
     token_type: str = "SHEILY"
 
+
 # Crear aplicación FastAPI
 app = FastAPI(
     title="Sheily AI Blockchain Service",
     description="Servicio de blockchain para tokens SHEILY",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Configurar CORS
@@ -52,8 +55,9 @@ blockchain_state = {
     "initialized": True,
     "start_time": datetime.now(),
     "wallets_created": 0,
-    "transactions_processed": 0
+    "transactions_processed": 0,
 }
+
 
 @app.get("/health")
 async def health_check():
@@ -64,8 +68,9 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "uptime": (datetime.now() - blockchain_state["start_time"]).total_seconds(),
         "wallets_created": blockchain_state["wallets_created"],
-        "transactions_processed": blockchain_state["transactions_processed"]
+        "transactions_processed": blockchain_state["transactions_processed"],
     }
+
 
 @app.post("/wallet/create")
 async def create_wallet(request: WalletRequest):
@@ -73,54 +78,57 @@ async def create_wallet(request: WalletRequest):
     try:
         # Simulación de creación de wallet
         import uuid
+
         wallet_address = f"sheily_{uuid.uuid4().hex[:16]}"
-        
+
         blockchain_state["wallets_created"] += 1
-        
+
         return {
             "success": True,
             "user_id": request.user_id,
             "wallet_address": wallet_address,
             "network": blockchain_state["network"],
             "initial_balance": 1000,
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
         }
-        
+
     except Exception as e:
         logger.error(f"Error creando wallet: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/wallet/{wallet_address}/balance")
 async def get_balance(wallet_address: str):
     """Obtener balance de wallet"""
     try:
         import random
-        
+
         # Simulación de balance
         balance = {
             "wallet_address": wallet_address,
             "sol_balance": round(random.uniform(0.1, 10.0), 4),
             "sheily_tokens": random.randint(100, 5000),
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now().isoformat(),
         }
-        
+
         return balance
-        
+
     except Exception as e:
         logger.error(f"Error obteniendo balance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/transfer")
 async def transfer_tokens(request: TransferRequest):
     """Transferir tokens entre wallets"""
     try:
         import uuid
-        
+
         # Simulación de transferencia
         tx_hash = f"tx_{uuid.uuid4().hex}"
-        
+
         blockchain_state["transactions_processed"] += 1
-        
+
         return {
             "success": True,
             "transaction_hash": tx_hash,
@@ -130,18 +138,19 @@ async def transfer_tokens(request: TransferRequest):
             "token_type": request.token_type,
             "network": blockchain_state["network"],
             "timestamp": datetime.now().isoformat(),
-            "gas_used": 5000
+            "gas_used": 5000,
         }
-        
+
     except Exception as e:
         logger.error(f"Error en transferencia: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/network/stats")
 async def get_network_stats():
     """Obtener estadísticas de la red"""
     import random
-    
+
     return {
         "network": blockchain_state["network"],
         "current_slot": random.randint(100000000, 200000000),
@@ -151,8 +160,9 @@ async def get_network_stats():
         "circulating_supply": 400000000,
         "wallets_active": blockchain_state["wallets_created"],
         "transactions_total": blockchain_state["transactions_processed"],
-        "last_updated": datetime.now().isoformat()
+        "last_updated": datetime.now().isoformat(),
     }
+
 
 @app.get("/status")
 async def get_status():
@@ -164,12 +174,13 @@ async def get_status():
         "status": "running",
         "features": [
             "wallet_creation",
-            "token_transfers", 
+            "token_transfers",
             "balance_queries",
-            "network_stats"
+            "network_stats",
         ],
-        "stats": blockchain_state
+        "stats": blockchain_state,
     }
+
 
 @app.get("/")
 async def root():
@@ -186,33 +197,41 @@ async def root():
             "/transfer",
             "/network/stats",
             "/status",
-            "/docs"
-        ]
+            "/docs",
+        ],
     }
+
 
 if __name__ == "__main__":
     logger.info("🚀 Iniciando Servidor Blockchain...")
-    
+
     # Instalar uvicorn si no está disponible
     try:
         import uvicorn
     except ImportError:
         logger.error("❌ uvicorn no está instalado. Instalando...")
         import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "uvicorn", "fastapi", "--break-system-packages"])
+
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "uvicorn",
+                "fastapi",
+                "--break-system-packages",
+            ]
+        )
         import uvicorn
-    
+
     # Configurar servidor
     config = uvicorn.Config(
-        app,
-        host="0.0.0.0",
-        port=8090,
-        log_level="info",
-        access_log=True
+        app, host="0.0.0.0", port=8090, log_level="info", access_log=True
     )
-    
+
     server = uvicorn.Server(config)
-    
+
     try:
         server.run()
     except KeyboardInterrupt:

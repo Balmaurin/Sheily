@@ -24,7 +24,9 @@ try:
     from ..unified_systems.module_monitor import ModuleMonitor
 except ImportError as e:
     # Fallback para cuando los módulos no están disponibles
-    print(f"⚠️ Advertencia: No se pudieron importar algunos módulos del núcleo central: {e}")
+    print(
+        f"⚠️ Advertencia: No se pudieron importar algunos módulos del núcleo central: {e}"
+    )
     NeuroFusionCore = None
     ModuleInitializer = None
     ModuleIntegrator = None
@@ -32,9 +34,9 @@ except ImportError as e:
     ModuleMonitor = None
 
 __all__ = [
-    'NeuroFusionCore',
-    'ModuleInitializer',
-    'ModuleIntegrator',
-    'ModulePluginManager',
-    'ModuleMonitor',
+    "NeuroFusionCore",
+    "ModuleInitializer",
+    "ModuleIntegrator",
+    "ModulePluginManager",
+    "ModuleMonitor",
 ]

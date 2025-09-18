@@ -255,56 +255,68 @@ HTML_TEMPLATE = """
 </html>
 """
 
-@app.route('/')
+
+@app.route("/")
 def dashboard():
     """Página principal del dashboard"""
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/chat')
+
+@app.route("/chat")
 def chat():
     """Página de chat (misma que dashboard)"""
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/health')
+
+@app.route("/health")
 def health():
     """Endpoint de salud del frontend"""
-    return jsonify({
-        "status": "healthy",
-        "service": "Sheily AI Frontend",
-        "version": "1.0.0",
-        "timestamp": "2025-09-17T20:50:00Z"
-    })
+    return jsonify(
+        {
+            "status": "healthy",
+            "service": "Sheily AI Frontend",
+            "version": "1.0.0",
+            "timestamp": "2025-09-17T20:50:00Z",
+        }
+    )
 
-@app.route('/api/status')
+
+@app.route("/api/status")
 def api_status():
     """Estado de servicios backend"""
     try:
         # Verificar backend
-        backend_response = requests.get('http://localhost:8000/api/health', timeout=2)
-        backend_status = backend_response.json() if backend_response.status_code == 200 else {"status": "error"}
-        
+        backend_response = requests.get("http://localhost:8000/api/health", timeout=2)
+        backend_status = (
+            backend_response.json()
+            if backend_response.status_code == 200
+            else {"status": "error"}
+        )
+
         # Verificar LLM
-        llm_response = requests.get('http://localhost:8005/health', timeout=2)
-        llm_status = llm_response.json() if llm_response.status_code == 200 else {"status": "error"}
-        
-        return jsonify({
-            "backend": backend_status,
-            "llm": llm_status,
-            "frontend": {"status": "healthy"}
-        })
+        llm_response = requests.get("http://localhost:8005/health", timeout=2)
+        llm_status = (
+            llm_response.json()
+            if llm_response.status_code == 200
+            else {"status": "error"}
+        )
+
+        return jsonify(
+            {
+                "backend": backend_status,
+                "llm": llm_status,
+                "frontend": {"status": "healthy"},
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     logger.info("🚀 Iniciando Frontend Simplificado de Sheily AI...")
-    
+
     try:
-        app.run(
-            host='0.0.0.0',
-            port=3000,
-            debug=False,
-            threaded=True
-        )
+        app.run(host="0.0.0.0", port=3000, debug=False, threaded=True)
     except Exception as e:
         logger.error(f"❌ Error iniciando frontend: {e}")
         raise

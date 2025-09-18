@@ -6,6 +6,7 @@ Script para resetear contraseña de usuario
 import psycopg2
 import bcrypt
 
+
 def reset_password(email, new_password):
     """Resetear contraseña de usuario"""
     try:
@@ -15,20 +16,21 @@ def reset_password(email, new_password):
             port=5432,
             database="sheily_ai_db",
             user="sheily_ai_user",
-            password="SheilyAI2025SecurePassword"
+            password="SheilyAI2025SecurePassword",
         )
-        
+
         cursor = conn.cursor()
-        
+
         # Generar hash de la nueva contraseña
-        password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        
+        password_hash = bcrypt.hashpw(
+            new_password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
+
         # Actualizar contraseña
         cursor.execute(
-            "UPDATE users SET password = %s WHERE email = %s",
-            (password_hash, email)
+            "UPDATE users SET password = %s WHERE email = %s", (password_hash, email)
         )
-        
+
         if cursor.rowcount > 0:
             conn.commit()
             print(f"✅ Contraseña actualizada para {email}")
@@ -37,22 +39,23 @@ def reset_password(email, new_password):
         else:
             print(f"❌ Usuario {email} no encontrado")
             return False
-            
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return False
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
+
 
 if __name__ == "__main__":
     # Resetear contraseña para sergiobalma.gomez@gmail.com
     email = "sergiobalma.gomez@gmail.com"
     new_password = "sheily123"
-    
+
     print(f"🔄 Reseteando contraseña para {email}...")
     success = reset_password(email, new_password)
-    
+
     if success:
         print("\n🎉 ¡Contraseña reseteada exitosamente!")
         print(f"📧 Email: {email}")

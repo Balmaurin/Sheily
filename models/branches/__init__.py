@@ -10,9 +10,4 @@ from .branch_embeddings import BranchEmbeddings
 from .branch_adapters import BranchAdapters
 from .branch_database import BranchDatabase
 
-__all__ = [
-    'BranchManager',
-    'BranchEmbeddings',
-    'BranchAdapters',
-    'BranchDatabase'
-]
+__all__ = ["BranchManager", "BranchEmbeddings", "BranchAdapters", "BranchDatabase"]

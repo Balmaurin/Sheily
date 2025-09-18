@@ -22,12 +22,14 @@ class QualityEvaluationConfig:
     factuality_threshold: float = 0.8
 
     # Métricas adicionales
-    metrics: Dict[str, float] = field(default_factory=lambda: {
-        "relevance": 0.0,
-        "coherence": 0.0,
-        "diversity": 0.0,
-        "factuality": 0.0
-    })
+    metrics: Dict[str, float] = field(
+        default_factory=lambda: {
+            "relevance": 0.0,
+            "coherence": 0.0,
+            "diversity": 0.0,
+            "factuality": 0.0,
+        }
+    )
 
 
 class NeuroFusionDataset(Dataset):
@@ -44,27 +46,29 @@ class NeuroFusionDataset(Dataset):
         for item in self.data:
             try:
                 # Validar campos requeridos
-                if not all(key in item for key in ['input', 'output']):
+                if not all(key in item for key in ["input", "output"]):
                     logger.warning(f"Saltando item inválido: {item}")
                     continue
 
                 # Tokenizar entrada y salida
                 encoding = self.tokenizer(
-                    item['input'], 
-                    text_target=item['output'], 
-                    max_length=512, 
-                    truncation=True, 
-                    padding='max_length'
+                    item["input"],
+                    text_target=item["output"],
+                    max_length=512,
+                    truncation=True,
+                    padding="max_length",
                 )
 
-                processed_items.append({
-                    "input_ids": torch.tensor(encoding["input_ids"]),
-                    "attention_mask": torch.tensor(encoding["attention_mask"]),
-                    "labels": torch.tensor(encoding["labels"])
-                })
+                processed_items.append(
+                    {
+                        "input_ids": torch.tensor(encoding["input_ids"]),
+                        "attention_mask": torch.tensor(encoding["attention_mask"]),
+                        "labels": torch.tensor(encoding["labels"]),
+                    }
+                )
             except Exception as e:
                 logger.error(f"Error procesando item: {e}")
-        
+
         return processed_items
 
     def __len__(self):
@@ -89,7 +93,7 @@ class AdvancedAISystem:
             target_modules=["q_proj", "v_proj"],
             lora_dropout=0.1,
             bias="none",
-            task_type="CAUSAL_LM"
+            task_type="CAUSAL_LM",
         )
 
         # Modelo adaptable con LoRA
@@ -99,19 +103,17 @@ class AdvancedAISystem:
         self.quality_config = QualityEvaluationConfig()
 
     def prepare_dataset(
-        self, 
-        training_data: List[Dict[str, str]], 
-        validation_split: float = 0.2
+        self, training_data: List[Dict[str, str]], validation_split: float = 0.2
     ) -> Tuple[NeuroFusionDataset, NeuroFusionDataset]:
         """Preparar dataset para entrenamiento con split de validación"""
         import random
 
         # Mezclar datos
         random.shuffle(training_data)
-        
+
         # Calcular punto de split
         split_idx = int(len(training_data) * (1 - validation_split))
-        
+
         train_data = training_data[:split_idx]
         val_data = training_data[split_idx:]
 
@@ -120,11 +122,13 @@ class AdvancedAISystem:
 
         return train_dataset, val_dataset
 
-    def fine_tune(self, 
-                  train_dataset: NeuroFusionDataset, 
-                  val_dataset: NeuroFusionDataset, 
-                  epochs: int = 3, 
-                  batch_size: int = 8):
+    def fine_tune(
+        self,
+        train_dataset: NeuroFusionDataset,
+        val_dataset: NeuroFusionDataset,
+        epochs: int = 3,
+        batch_size: int = 8,
+    ):
         """Fine-tuning del modelo con LoRA y validación"""
         training_args = TrainingArguments(
             output_dir="./results",
@@ -145,7 +149,7 @@ class AdvancedAISystem:
             args=training_args,
             train_dataset=train_dataset,
             eval_dataset=val_dataset,
-            compute_metrics=self._compute_metrics
+            compute_metrics=self._compute_metrics,
         )
 
         trainer.train()
@@ -158,76 +162,73 @@ class AdvancedAISystem:
         # Implementar métricas reales de evaluación
         return {
             "accuracy": (predictions == labels).mean(),
-            "loss": np.mean(np.abs(predictions - labels))
+            "loss": np.mean(np.abs(predictions - labels)),
         }
 
-    def generate_training_data(self, 
-                                domains: List[str], 
-                                num_samples: int = 100) -> List[Dict[str, str]]:
+    def generate_training_data(
+        self, domains: List[str], num_samples: int = 100
+    ) -> List[Dict[str, str]]:
         """Generar datos de entrenamiento reales"""
         training_data = []
         for domain in domains:
             # Lógica real de generación de datos
             domain_data = self._generate_domain_data(domain, num_samples)
             training_data.extend(domain_data)
-        
+
         return training_data
 
-    def _generate_domain_data(self, domain: str, num_samples: int) -> List[Dict[str, str]]:
+    def _generate_domain_data(
+        self, domain: str, num_samples: int
+    ) -> List[Dict[str, str]]:
         """Generar datos para un dominio específico"""
         # Implementación de generación de datos con contexto real
         domain_prompts = {
             "inteligencia_artificial": [
                 "Explica el concepto de aprendizaje profundo",
                 "¿Qué son las redes neuronales?",
-                "Describe la diferencia entre IA débil y fuerte"
+                "Describe la diferencia entre IA débil y fuerte",
             ],
             "ciencia": [
                 "Explica la teoría de la relatividad",
                 "¿Cómo funcionan las células madre?",
-                "Describe el proceso de fotosíntesis"
-            ]
+                "Describe el proceso de fotosíntesis",
+            ],
         }
 
         data = []
         for prompt in domain_prompts.get(domain, []):
             # Generar respuestas usando el modelo base
             response = self._generate_response(prompt)
-            data.append({
-                "input": prompt,
-                "output": response,
-                "domain": domain
-            })
+            data.append({"input": prompt, "output": response, "domain": domain})
 
         return data[:num_samples]
 
     def _generate_response(self, prompt: str, max_length: int = 200) -> str:
         """Generar respuesta con el modelo base"""
-        inputs = self.tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True)
-        
+        inputs = self.tokenizer(
+            prompt, return_tensors="pt", max_length=512, truncation=True
+        )
+
         with torch.no_grad():
             outputs = self.base_model.generate(
-                **inputs, 
-                max_length=max_length, 
-                num_return_sequences=1, 
-                temperature=0.7
+                **inputs, max_length=max_length, num_return_sequences=1, temperature=0.7
             )
-        
+
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def visualize_training_data(self, training_data: List[Dict[str, str]]):
         """Visualizar datos de entrenamiento"""
         import pandas as pd
-        
+
         # Convertir a DataFrame para visualización
         df = pd.DataFrame(training_data)
-        
+
         # Mostrar información básica
         print("Resumen de Datos de Entrenamiento:")
         print(f"Total de muestras: {len(df)}")
         print("\nDistribución por dominio:")
-        print(df['domain'].value_counts())
-        
+        print(df["domain"].value_counts())
+
         # Mostrar algunas muestras
         print("\nMuestras de Entrenamiento:")
         for _, row in df.head(5).iterrows():

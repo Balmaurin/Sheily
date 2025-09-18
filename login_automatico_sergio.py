@@ -11,30 +11,28 @@ import json
 import webbrowser
 import time
 
+
 def login_automatico():
     """Hacer login automático para sergio"""
     print("🚀 Iniciando login automático para Sergio...")
-    
+
     try:
         # Hacer login
         response = requests.post(
             "http://localhost:8000/api/auth/login",
-            json={
-                "username": "sergiobalma.gomez@gmail.com",
-                "password": "sheily123"
-            }
+            json={"username": "sergiobalma.gomez@gmail.com", "password": "sheily123"},
         )
-        
+
         if response.status_code == 200:
             data = response.json()
-            
+
             print("✅ Login exitoso!")
             print(f"👤 Usuario: {data['user']['full_name']}")
             print(f"📧 Email: {data['user']['email']}")
             print(f"🎭 Rol: {data['user']['role']}")
             print(f"💰 Tokens: {data['user']['tokens']}")
             print(f"🔑 Token JWT: {data['token'][:50]}...")
-            
+
             # Crear archivo HTML temporal con login automático
             html_content = f"""
 <!DOCTYPE html>
@@ -123,38 +121,39 @@ def login_automatico():
 </body>
 </html>
             """
-            
+
             # Guardar archivo HTML
-            with open('login_sergio.html', 'w', encoding='utf-8') as f:
+            with open("login_sergio.html", "w", encoding="utf-8") as f:
                 f.write(html_content)
-            
+
             print("\n🌐 Abriendo navegador con login automático...")
             print("📁 Archivo creado: login_sergio.html")
-            
+
             # Abrir en navegador
-            webbrowser.open('file://' + os.path.abspath('login_sergio.html'))
-            
+            webbrowser.open("file://" + os.path.abspath("login_sergio.html"))
+
             return True
-            
+
         else:
             error = response.json()
             print(f"❌ Error de login: {error.get('error', 'Error desconocido')}")
             return False
-            
+
     except Exception as e:
         print(f"❌ Error de conexión: {e}")
         return False
 
+
 if __name__ == "__main__":
     import os
-    
+
     print("🔑 CREDENCIALES PARA SERGIO:")
     print("📧 Email: sergiobalma.gomez@gmail.com")
     print("🔑 Contraseña: sheily123")
     print()
-    
+
     success = login_automatico()
-    
+
     if success:
         print("\n🎉 ¡Login automático completado!")
         print("🌐 El navegador debería abrirse automáticamente")

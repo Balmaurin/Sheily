@@ -30,9 +30,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class QueryResult:
     """Resultado de procesamiento de consulta"""
+
     query: str
     response: str
     confidence: float
@@ -40,6 +42,7 @@ class QueryResult:
     domain: str
     quality_score: float = 0.0
     issues: List[str] = field(default_factory=list)
+
 
 class SimpleSheilySystem:
     """Sistema Sheily simplificado que conecta con LLM"""
@@ -56,13 +59,17 @@ class SimpleSheilySystem:
         except Exception as e:
             self.logger.error(f"❌ Error inicializando sistema: {e}")
 
-    async def process_query(self, query: str, context: Optional[Dict[str, Any]] = None) -> QueryResult:
+    async def process_query(
+        self, query: str, context: Optional[Dict[str, Any]] = None
+    ) -> QueryResult:
         """Procesar consulta conectando con LLM Llama 3.2 Q8_0"""
         start_time = time.time()
 
         try:
             self.request_count += 1
-            self.logger.info(f"📝 Procesando consulta #{self.request_count}: {query[:50]}...")
+            self.logger.info(
+                f"📝 Procesando consulta #{self.request_count}: {query[:50]}..."
+            )
 
             # Detectar dominio
             domain = await self._detect_domain(query)
@@ -81,7 +88,7 @@ class SimpleSheilySystem:
                 confidence=0.85,
                 processing_time=processing_time,
                 domain=domain,
-                quality_score=0.85
+                quality_score=0.85,
             )
 
         except Exception as e:
@@ -95,7 +102,7 @@ class SimpleSheilySystem:
                 processing_time=processing_time,
                 domain="error",
                 quality_score=0.0,
-                issues=[str(e)]
+                issues=[str(e)],
             )
 
     async def _detect_domain(self, query: str) -> str:
@@ -103,23 +110,58 @@ class SimpleSheilySystem:
         query_lower = query.lower()
 
         domain_keywords = {
-            'programming': ['python', 'código', 'programar', 'función', 'javascript', 'java', 'c++', 'desarrollo', 'software'],
-            'ai': ['ia', 'inteligencia artificial', 'machine learning', 'neural', 'modelo', 'deep learning', 'aprendizaje'],
-            'database': ['base de datos', 'sql', 'database', 'mysql', 'postgres', 'consulta', 'datos'],
-            'science': ['ciencia', 'matemáticas', 'física', 'química', 'investigación', 'experimento'],
-            'medical': ['médico', 'salud', 'enfermedad', 'tratamiento', 'diagnóstico'],
-            'technical': ['tecnología', 'técnico', 'ingeniería', 'sistema', 'hardware'],
-            'creative': ['arte', 'creativo', 'diseño', 'música', 'creatividad'],
-            'business': ['negocio', 'empresa', 'mercado', 'economía', 'finanzas']
+            "programming": [
+                "python",
+                "código",
+                "programar",
+                "función",
+                "javascript",
+                "java",
+                "c++",
+                "desarrollo",
+                "software",
+            ],
+            "ai": [
+                "ia",
+                "inteligencia artificial",
+                "machine learning",
+                "neural",
+                "modelo",
+                "deep learning",
+                "aprendizaje",
+            ],
+            "database": [
+                "base de datos",
+                "sql",
+                "database",
+                "mysql",
+                "postgres",
+                "consulta",
+                "datos",
+            ],
+            "science": [
+                "ciencia",
+                "matemáticas",
+                "física",
+                "química",
+                "investigación",
+                "experimento",
+            ],
+            "medical": ["médico", "salud", "enfermedad", "tratamiento", "diagnóstico"],
+            "technical": ["tecnología", "técnico", "ingeniería", "sistema", "hardware"],
+            "creative": ["arte", "creativo", "diseño", "música", "creatividad"],
+            "business": ["negocio", "empresa", "mercado", "economía", "finanzas"],
         }
 
         for domain, keywords in domain_keywords.items():
             if any(keyword in query_lower for keyword in keywords):
                 return domain
 
-        return 'general'
+        return "general"
 
-    async def _generate_response_with_llm(self, query: str, domain: str, context: Optional[Dict[str, Any]] = None) -> str:
+    async def _generate_response_with_llm(
+        self, query: str, domain: str, context: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Generar respuesta usando LLM Llama 3.2 Q8_0"""
         try:
             # Preparar prompt según dominio
@@ -132,7 +174,7 @@ class SimpleSheilySystem:
                 "technical": "Eres un experto técnico. Explica conceptos tecnológicos detalladamente.",
                 "creative": "Eres creativo. Responde de forma innovadora y artística.",
                 "business": "Eres un experto en negocios. Proporciona consejos empresariales estratégicos.",
-                "general": "Eres Sheily AI, un asistente inteligente útil y amigable."
+                "general": "Eres Sheily AI, un asistente inteligente útil y amigable.",
             }
 
             system_prompt = domain_prompts.get(domain, domain_prompts["general"])
@@ -142,21 +184,19 @@ class SimpleSheilySystem:
             async with httpx.AsyncClient(timeout=45.0) as client:
                 response = await client.post(
                     "http://localhost:8005/generate",
-                    json={
-                        "prompt": full_prompt,
-                        "max_tokens": 600,
-                        "temperature": 0.7
-                    },
+                    json={"prompt": full_prompt, "max_tokens": 600, "temperature": 0.7},
                     headers={
                         "Content-Type": "application/json",
-                        "Origin": "http://localhost:8080"
-                    }
+                        "Origin": "http://localhost:8080",
+                    },
                 )
 
                 if response.status_code == 200:
                     llm_response = response.json().get("response", "")
                     if llm_response and len(llm_response.strip()) > 10:
-                        self.logger.info(f"✅ Respuesta generada por LLM para dominio '{domain}': {len(llm_response)} caracteres")
+                        self.logger.info(
+                            f"✅ Respuesta generada por LLM para dominio '{domain}': {len(llm_response)} caracteres"
+                        )
                         return llm_response.strip()
                     else:
                         return f"Lo siento, no pude generar una respuesta específica para tu consulta sobre {domain}."
@@ -180,14 +220,16 @@ class SimpleSheilySystem:
             "uptime_seconds": uptime.total_seconds(),
             "requests_processed": self.request_count,
             "llm_connected": True,  # Asumimos que está conectado
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
+
 
 # Modelo Pydantic para requests
 class QueryRequest(BaseModel):
     query: str
     domain: str = "general"
     context: Optional[Dict[str, Any]] = None
+
 
 class QueryResponse(BaseModel):
     query: str
@@ -199,11 +241,12 @@ class QueryResponse(BaseModel):
     timestamp: str
     issues: List[str] = []
 
+
 # Crear aplicación FastAPI
 app = FastAPI(
     title="Simple Sheily AI Server",
     description="Servidor simplificado para Sheily AI con conexión a LLM Llama 3.2 Q8_0",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Configurar CORS
@@ -218,6 +261,7 @@ app.add_middleware(
 # Instancia del sistema
 sheily_system = SimpleSheilySystem()
 
+
 # Endpoints
 @app.get("/")
 async def root():
@@ -226,12 +270,9 @@ async def root():
         "message": "Simple Sheily AI Server",
         "version": "1.0.0",
         "status": "running",
-        "endpoints": [
-            "/health",
-            "/query",
-            "/status"
-        ]
+        "endpoints": ["/health", "/query", "/status"],
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -242,11 +283,12 @@ async def health_check():
             "status": "healthy" if status["initialized"] else "unhealthy",
             "timestamp": datetime.now().isoformat(),
             "uptime": status["uptime_seconds"],
-            "requests_processed": status["requests_processed"]
+            "requests_processed": status["requests_processed"],
         }
     except Exception as e:
         logger.error(f"Error en health check: {e}")
         raise HTTPException(status_code=503, detail="Servicio no disponible")
+
 
 @app.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest, background_tasks: BackgroundTasks):
@@ -266,12 +308,15 @@ async def process_query(request: QueryRequest, background_tasks: BackgroundTasks
             domain=result.domain,
             quality_score=result.quality_score,
             timestamp=datetime.now().isoformat(),
-            issues=result.issues
+            issues=result.issues,
         )
 
     except Exception as e:
         logger.error(f"Error procesando consulta: {e}")
-        raise HTTPException(status_code=500, detail=f"Error procesando consulta: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error procesando consulta: {str(e)}"
+        )
+
 
 @app.get("/status")
 async def get_system_status():
@@ -280,7 +325,10 @@ async def get_system_status():
         return sheily_system.get_status()
     except Exception as e:
         logger.error(f"Error obteniendo estado: {e}")
-        raise HTTPException(status_code=500, detail="Error obteniendo estado del sistema")
+        raise HTTPException(
+            status_code=500, detail="Error obteniendo estado del sistema"
+        )
+
 
 # Función para ejecutar servidor
 def run_server(host: str = "127.0.0.1", port: int = 8080, reload: bool = False):
@@ -292,8 +340,9 @@ def run_server(host: str = "127.0.0.1", port: int = 8080, reload: bool = False):
         host=host,
         port=port,
         reload=reload,
-        log_level="info"
+        log_level="info",
     )
+
 
 if __name__ == "__main__":
     run_server()

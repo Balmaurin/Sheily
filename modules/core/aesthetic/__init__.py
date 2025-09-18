@@ -14,7 +14,7 @@ from .aesthetic import (
     ExperimentalDescriptors,
     ExperimentalValidator,
     AestheticNeuralNetwork,
-    main
+    main,
 )
 
 __version__ = "1.2.0"
@@ -22,7 +22,7 @@ __author__ = "Equipo de Investigación NeuroFusion"
 
 __all__ = [
     "ExperimentalDescriptors",
-    "ExperimentalValidator", 
+    "ExperimentalValidator",
     "AestheticNeuralNetwork",
-    "main"
+    "main",
 ]
