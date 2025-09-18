@@ -1,0 +1,333 @@
+{
+  "branch_01": {
+    "name": "Guardianes de la Vida",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_01_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_01",
+    "training_steps": 1500,
+    "keywords": [
+      "biología"
+    ]
+  },
+  "branch_02": {
+    "name": "Tejedores del Universo",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_02_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_02",
+    "training_steps": 1500,
+    "keywords": [
+      "física"
+    ]
+  },
+  "branch_03": {
+    "name": "Alquimistas Modernos",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_03_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_03",
+    "training_steps": 1500,
+    "keywords": [
+      "química"
+    ]
+  },
+  "branch_04": {
+    "name": "Exploradores Cósmicos",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_04_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_04",
+    "training_steps": 1500,
+    "keywords": [
+      "astronomía"
+    ]
+  },
+  "branch_05": {
+    "name": "Cronistas de la Tierra",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_05_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_05",
+    "training_steps": 1500,
+    "keywords": [
+      "geología"
+    ]
+  },
+  "branch_06": {
+    "name": "Defensores del Equilibrio",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_06_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_06",
+    "training_steps": 1500,
+    "keywords": [
+      "ecología"
+    ]
+  },
+  "branch_07": {
+    "name": "Cartógrafos de la Mente",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_07_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_07",
+    "training_steps": 1500,
+    "keywords": [
+      "neurociencia"
+    ]
+  },
+  "branch_08": {
+    "name": "Arquitectos del ADN",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_08_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_08",
+    "training_steps": 1500,
+    "keywords": [
+      "genética"
+    ]
+  },
+  "branch_09": {
+    "name": "Narradores de Eras Perdidas",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_09_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_09",
+    "training_steps": 1500,
+    "keywords": [
+      "paleontología"
+    ]
+  },
+  "branch_10": {
+    "name": "Navegantes de las Profundidades",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_10_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_10",
+    "training_steps": 1500,
+    "keywords": [
+      "oceanografía"
+    ]
+  },
+  "branch_11": {
+    "name": "Pioneros de la Cognición Digital",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_11_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_11",
+    "training_steps": 1500,
+    "keywords": [
+      "inteligencia artificial"
+    ]
+  },
+  "branch_12": {
+    "name": "Centinelas Digitales",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_12_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_12",
+    "training_steps": 1500,
+    "keywords": [
+      "ciberseguridad"
+    ]
+  },
+  "branch_13": {
+    "name": "Artesanos del Ciberespacio",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_13_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_13",
+    "training_steps": 1500,
+    "keywords": [
+      "desarrollo web"
+    ]
+  },
+  "branch_14": {
+    "name": "Tejedores de Conexiones",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_14_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_14",
+    "training_steps": 1500,
+    "keywords": [
+      "redes"
+    ]
+  },
+  "branch_15": {
+    "name": "Constructores de Nubes Digitales",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_15_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_15",
+    "training_steps": 1500,
+    "keywords": [
+      "computación en la nube"
+    ]
+  },
+  "branch_16": {
+    "name": "Creadores de Autómatas",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_16_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_16",
+    "training_steps": 1500,
+    "keywords": [
+      "robótica"
+    ]
+  },
+  "branch_17": {
+    "name": "Arquitectos de Mundos Imaginarios",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_17_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_17",
+    "training_steps": 1500,
+    "keywords": [
+      "realidad virtual"
+    ]
+  },
+  "branch_18": {
+    "name": "Forjadores de Confianza Digital",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_18_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_18",
+    "training_steps": 1500,
+    "keywords": [
+      "blockchain"
+    ]
+  },
+  "branch_19": {
+    "name": "Sinfonistas de la Tecnología Conectada",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_19_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_19",
+    "training_steps": 1500,
+    "keywords": [
+      "internet de las cosas"
+    ]
+  },
+  "branch_20": {
+    "name": "Visionarios de la Mecánicá Cuántica",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_20_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_20",
+    "training_steps": 1500,
+    "keywords": [
+      "computación cuántica"
+    ]
+  },
+  "branch_21": {
+    "name": "Cronistas de la Memoria Colectiva",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_21_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_21",
+    "training_steps": 1500,
+    "keywords": [
+      "historia"
+    ]
+  },
+  "branch_22": {
+    "name": "Buscadores de la Sabiduría Eterna",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_22_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_22",
+    "training_steps": 1500,
+    "keywords": [
+      "filosofía"
+    ]
+  },
+  "branch_23": {
+    "name": "Intérpretes de la Humanidad",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_23_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_23",
+    "training_steps": 1500,
+    "keywords": [
+      "antropología"
+    ]
+  },
+  "branch_24": {
+    "name": "Exploradores del Alma Humana",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_24_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_24",
+    "training_steps": 1500,
+    "keywords": [
+      "psicología"
+    ]
+  },
+  "branch_25": {
+    "name": "Tejedores de Relaciones Sociales",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_25_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_25",
+    "training_steps": 1500,
+    "keywords": [
+      "sociología"
+    ]
+  },
+  "branch_26": {
+    "name": "Descifradores de Civilizaciones",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_26_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_26",
+    "training_steps": 1500,
+    "keywords": [
+      "arqueología"
+    ]
+  },
+  "branch_27": {
+    "name": "Arquitectos del Lenguaje",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_27_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_27",
+    "training_steps": 1500,
+    "keywords": [
+      "lingüística"
+    ]
+  },
+  "branch_28": {
+    "name": "Puentes Entre Mundos",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_28_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_28",
+    "training_steps": 1500,
+    "keywords": [
+      "estudios culturales"
+    ]
+  },
+  "branch_29": {
+    "name": "Guardianes de los Principios",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_29_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_29",
+    "training_steps": 1500,
+    "keywords": [
+      "ética"
+    ]
+  },
+  "branch_30": {
+    "name": "Constructores de Sociedades",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_30_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_30",
+    "training_steps": 1500,
+    "keywords": [
+      "política"
+    ]
+  },
+  "branch_31": {
+    "name": "Estrategas de los Recursos",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_31_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_31",
+    "training_steps": 1500,
+    "keywords": [
+      "economía"
+    ]
+  },
+  "branch_32": {
+    "name": "Alquimistas de la Percepción",
+    "dataset_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/data/branches/branch_32_dataset.jsonl",
+    "output_path": "/home/yo/Escritorio/DEFINITIVO (Copiar 3)/shaili-ai/models/llama_branches/branch_32",
+    "training_steps": 1500,
+    "keywords": [
+      "artes visuales"
+    ]
+  },
+  "branch_33": {
+    "name": "Maestros de los Números",
+    "dataset_path": "/home/yo/sheily-ai/data/branches/branch_33_dataset.jsonl",
+    "output_path": "/home/yo/sheily-ai/models/llama_branches/branch_33",
+    "training_steps": 1500,
+    "keywords": [
+      "matemáticas",
+      "álgebra",
+      "cálculo",
+      "estadística",
+      "geometría",
+      "trigonometría"
+    ]
+  },
+  "branch_34": {
+    "name": "Sanadores del Cuerpo y Alma",
+    "dataset_path": "/home/yo/sheily-ai/data/branches/branch_34_dataset.jsonl",
+    "output_path": "/home/yo/sheily-ai/models/llama_branches/branch_34",
+    "training_steps": 1500,
+    "keywords": [
+      "medicina",
+      "salud",
+      "diagnóstico",
+      "tratamiento",
+      "farmacología",
+      "anatomía",
+      "fisiología"
+    ]
+  },
+  "branch_35": {
+    "name": "Guías del Conocimiento",
+    "dataset_path": "/home/yo/sheily-ai/data/branches/branch_35_dataset.jsonl",
+    "output_path": "/home/yo/sheily-ai/models/llama_branches/branch_35",
+    "training_steps": 1500,
+    "keywords": [
+      "educación",
+      "pedagogía",
+      "enseñanza",
+      "aprendizaje",
+      "metodología",
+      "didáctica"
+    ]
+  }
+}

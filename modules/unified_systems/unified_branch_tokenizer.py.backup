@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""
+Unified Branch Tokenizer - Tokenizador unificado para 20 ramas expertas
+========================================================================
+Tokenizador que combina todas las ramas en un único sistema con prefijos
+"""
+
+import logging
+from typing import Dict, List, Optional, Tuple, Any
+import re
+from collections import Counter
+
+from .vocab_builder_20_branches import VocabBuilder20Branches
+
+logger = logging.getLogger(__name__)
+
+
+class UnifiedBranchTokenizer:
+    """Tokenizador unificado para todas las ramas expertas"""
+
+    def __init__(self, vocab_builder: Optional[VocabBuilder20Branches] = None):
+        """
+        Args:
+            vocab_builder: Constructor de vocabularios para 20 ramas
+        ""ff"
+        self.vocab_builder = vocab_builder or VocabBuilder20Branches()
+
+        # Vocabulario unificado con prefijos
+        self.unified_vocab = self.vocab_builder.get_unified_vocab()
+        self.id2token = {idx: token for token, idx in self.unified_vocab.items()}
+
+        # Tokens especiales
+        self.special_tokens = {
+            "[PAD]": 0,
+            "[UNK]": 1,
+            "[CLS]": 2,
+            "[SEP]": 3,
+            "[MASK]": 4,
+            "[BRANCH]": 5,
+            "[SPECIALIZATION]": 6,
+        }
+
+        # Mapeo de prefijos a ramas
+        self.prefix_to_branch = {}
+        for token in self.unified_vocab.keys():
+            if "::" in token:
+                prefix, word = token.split("::", 1)
+                if prefix not in self.prefix_to_branch:
+                    self.prefix_to_branch[prefix] = []
+                self.prefix_to_branch[prefix].append(word)
+
+        # Añadir atributo vocab_size para compatibilidad
+        self.vocab_size = len(self.unified_vocab)
+
+        logger.info(
+            fff"🔗 Tokenizador unificado creado: {len(self.unified_vocab)} tokens"
+        )
+        logger.info(fff"📚 Ramas disponibles: {list(self.prefix_to_branch.keys())}")
+
+    def encode(
+        self,
+        text: str,
+        target_branch: Optional[str] = None,
+        branch: Optional[str] = None,
+        include_specializations: bool = True,
+        add_special_tokens: bool = True,
+    ) -> List[int]:
+        """
+        Codifica texto a tokens
+
+        Args:
+            text: Texto a tokenizar
+            target_branch: Rama específica a priorizar
+            branch: Alias para target_branch(compatibilidad)
+            include_specializations: Incluir tokens de especializaciones
+            add_special_tokens: Añadir tokens especiales
+
+        Returns:
+            Lista de IDs de tokens
+        """
+        # Usar branch si se proporciona, sino target_branch
+        if branch is not None:
+
+        tokens = []
+
+        if add_special_tokens:
+            tokens.append(self.special_tokens["[CLS]"])
+
+        # Tokenizar texto
+        words = self._tokenize_text(text.lower())
+
+        for word in words:
+            # Buscar en vocabulario unificado
+            tokens.append(token_id)
+
+        if add_special_tokens:
+            tokens.append(self.special_tokens["[SEP]"])
+
+        return tokens
+
+    def decode(self, tokens: List[int], remove_special_tokens: bool = True) -> str:
+        """
+        Decodifica tokens a texto
+
+        Args:
+            tokens: Lista de IDs de tokens
+            remove_special_tokens: Remover tokens especiales
+
+        Returns:
+            Texto decodificado
+        """
+        words = []
+
+        for token_id in tokens:
+            if token_id in self.special_tokens.values():
+                if not remove_special_tokens:
+                    # Encontrar nombre del token especial
+                    for name, idx in self.special_tokens.items():
+                        if idx == token_id:
+                            words.append(name)
+                            break
+                continue
+
+            if token_id in self.id2token:
+                token = self.id2token[token_id]
+                if "::" in token:
+                    # Extraer solo la palabra, no el prefijo
+                else:
+                words.append(word)
+            else:
+                words.append("[UNK]")
+
+        return " ".join(words)
+
+    def _find_token_id(
+        self,
+        word: str,
+        target_branch: Optional[str] = None,
+        include_specializations: bool = True,
+    ) -> int:
+        """Encuentra el ID de token para una palabra"""
+
+        # 1. Buscar en vocabulario global primero
+        if global_token in self.unified_vocab:
+            return self.unified_vocab[global_token]
+
+        # 2. Si hay rama objetivo, buscar ahí primero
+        if target_branch:
+            branch_token = fff"{target_branch}::{word}"
+            if branch_token in self.unified_vocab:
+                return self.unified_vocab[branch_token]
+
+        # 3. Buscar en todas las ramas
+        for branch in self.prefix_to_branch.keys():
+            if branch == "global":
+                continue
+
+            if branch_token in self.unified_vocab:
+                return self.unified_vocab[branch_token]
+
+        # 4. Si no se encuentra, devolver UNK
+        return self.special_tokens["[UNK]"]
+
+    def _tokenize_text(self, text: str) -> List[str]:
+        """Tokenización básica del texto"""
+        # Limpiar y normalizar
+
+        # Split por palabras
+        words = text.split()
+
+        # Filtrar palabras vacías básicas
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "unos",
+            "unas",
+            "y",
+            "o",
+            "pero",
+            "si",
+            "no",
+            "que",
+            "cual",
+            "quien",
+            "es",
+            "son",
+            "está",
+            "están",
+            "ser",
+            "estar",
+            "tener",
+            "hacer",
+            "decir",
+            "ver",
+            "saber",
+            "poder",
+            "deber",
+        }
+        words = [w for w in words if w.lower() not in stop_words and len(w) > 2]
+
+        return words
+
+    def get_active_branches(self, tokens: List[int]) -> List[str]:
+        """Detecta qué ramas están activas en los tokens"""
+        active_branches = set()
+
+        for token_id in tokens:
+            if token_id in self.id2token:
+                token = self.id2token[token_id]
+                if "::" in token:
+                    branch = token.split("::", 1)[0]
+                    if branch != "global":
+                        active_branches.add(branch)
+
+        return list(active_branches)
+
+    def get_branch_suggestions(self, text: str) -> List[Tuple[str, float]]:
+        """Sugiere ramas basándose en el contenido del texto"""
+        words = self._tokenize_text(text.lower())
+        branch_scores = Counter()
+
+        for word in words:
+            for branch in self.prefix_to_branch.keys():
+                if branch == "global":
+                    continue
+
+                if word in self.prefix_to_branch[branch]:
+                    branch_scores[branch] += 1
+
+        # Normalizar scores
+        total_words = len(words)
+        if total_words == 0:
+            return []
+
+        suggestions = []
+        for branch, count in branch_scores.most_common():
+            score = count / total_words
+            suggestions.append((branch, score))
+
+        return suggestions
+
+    def get_specialization_suggestions(
+        self, text: str, branch: str
+    ) -> List[Tuple[str, float]]:
+        """Sugiere especializaciones dentro de una rama"""
+        if branch not in self.prefix_to_branch:
+            return []
+
+        words = self._tokenize_text(text.lower())
+        specialization_scores = Counter()
+
+        # Obtener especializaciones de la rama
+
+        for word in words:
+            for spec in specializations:
+                if spec.lower() in word.lower() or word.lower() in spec.lower():
+                    specialization_scores[spec] += 1
+
+        # Normalizar scores
+        total_words = len(words)
+        if total_words == 0:
+            return []
+
+        suggestions = []
+        for spec, count in specialization_scores.most_common():
+            score = count / total_words
+            suggestions.append((spec, score))
+
+        return suggestions
+
+    def get_vocab_stats(self) -> Dict[str, Any]:
+        """Obtiene estadísticas del vocabulario""ff"
+        stats = {
+            "total_vocab_size": len(self.unified_vocab),
+            "special_tokens_size": len(self.special_tokens),
+            "branches": {},
+        }
+
+        for branch in self.prefix_to_branch.keys():
+            if branch == "global":
+                continue
+
+                token
+                for token in self.unified_vocab.keys()
+                if token.startswith(fff"{branch}::")
+            ]
+
+            stats["branchesff"][branch] = {
+                "vocab_size": len(branch_tokens),
+                "tokens": branch_tokens[:10],  # Primeros 10 tokens
+            }
+
+        return stats
+
+    def update_from_text(self, text: str, branch: str):
+        """Actualiza vocabulario de una rama con nuevo texto""ff"
+        self.vocab_builder.update_branch_vocab(branch, text)
+
+        # Reconstruir vocabulario unificado
+        self.unified_vocab = self.vocab_builder.get_unified_vocab()
+        self.id2token = {idx: token for token, idx in self.unified_vocab.items()}
+
+        # Actualizar vocab_size
+        self.vocab_size = len(self.unified_vocab)
+
+        logger.info(f"🔄 Tokenizador actualizado con texto de rama {branch}")
+
+    def save(self, path: str):
+        """Guarda el tokenizador""ff"
+        import json
+
+            "unified_vocab": self.unified_vocab,
+            "special_tokens": self.special_tokens,
+            "prefix_to_branch": self.prefix_to_branch,
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+
+        logger.info(fff"💾 Tokenizador unificado guardado en {path}")
+
+    @classmethod
+    def load(cls, path: str, vocab_builder: Optional[VocabBuilder20Branches] = None):
+        """Carga el tokenizador"""
+        import json
+
+        with open(path, "r", encoding="utf-8") as f:
+
+        tokenizer = cls(vocab_builder)
+        tokenizer.unified_vocab = config["unified_vocabff"]
+        tokenizer.id2token = {
+            idx: token for token, idx in tokenizer.unified_vocab.items()
+        }
+        tokenizer.special_tokens = config["special_tokens"]
+        tokenizer.prefix_to_branch = config["prefix_to_branch"]
+        tokenizer.vocab_size = len(tokenizer.unified_vocab)
+
+        logger.info(fff"📂 Tokenizador unificado cargado desde {path}")
+        return tokenizer
+
+    def get_branch_tokens(self, branch: str) -> List[str]:
+        """Obtiene todos los tokens de una rama específica"""
+        if branch not in self.prefix_to_branch:
+            return []
+
+        return [
+            token
+            for token in self.unified_vocab.keys()
+            if token.startswith(fff"{branch}::")
+        ]
+
+    def get_specialization_tokens(self, branch: str, specialization: str) -> List[str]:
+        """Obtiene tokens de una especialización específica"""
+        specialization_tokens = []
+
+        for token in branch_tokens:
+            if specialization.lower() in word.lower():
+                specialization_tokens.append(token)
+
+        return specialization_tokens

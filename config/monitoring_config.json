@@ -1,0 +1,53 @@
+{
+  "enabled": true,
+  "alert_thresholds": {
+    "failed_transactions": 10,
+    "pending_timeout": 300,
+    "high_value_transaction": 10000,
+    "suspicious_activity": 5
+  },
+  "monitoring_rules": [
+    {
+      "rule_id": "failed_transactions",
+      "name": "Transacciones Fallidas",
+      "description": "Alerta cuando hay muchas transacciones fallidas",
+      "enabled": true,
+      "conditions": {
+        "max_failed": 10,
+        "time_window": 3600
+      },
+      "actions": null
+    },
+    {
+      "rule_id": "pending_timeout",
+      "name": "Timeout de Transacciones Pendientes",
+      "description": "Alerta cuando transacciones est\u00e1n pendientes por mucho tiempo",
+      "enabled": true,
+      "conditions": {
+        "max_pending_time": 300
+      },
+      "actions": null
+    },
+    {
+      "rule_id": "high_value_transactions",
+      "name": "Transacciones de Alto Valor",
+      "description": "Alerta para transacciones de alto valor",
+      "enabled": true,
+      "conditions": {
+        "min_amount": 10000
+      },
+      "actions": null
+    },
+    {
+      "rule_id": "suspicious_activity",
+      "name": "Actividad Sospechosa",
+      "description": "Alerta para actividad sospechosa",
+      "enabled": true,
+      "conditions": {
+        "max_transactions_per_user": 5,
+        "time_window": 300
+      },
+      "actions": null
+    }
+  ]
+}

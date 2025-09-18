@@ -1,0 +1,444 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+/* Smooth fade-in */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  animation: fadeInUp 800ms ease forwards;
+}
+
+/* =============================================================================
+   CONFIGURACIÓN UNIFICADA CSS - TODOS LOS FIXES EN UN SOLO ARCHIVO
+   ============================================================================= */
+
+/* Fix para -webkit-text-size-adjust */
+html {
+  text-size-adjust: 100% !important;
+  -webkit-text-size-adjust: 100% !important;
+  -moz-text-size-adjust: 100% !important;
+  -ms-text-size-adjust: 100% !important;
+}
+
+/* Fix para -moz-osx-font-smoothing */
+body {
+  font-smoothing: antialiased !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  -moz-font-smoothing: antialiased !important;
+  text-rendering: optimizeLegibility !important;
+}
+
+/* Aplicar a todos los elementos para consistencia */
+* {
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Fix para propiedades CSS modernas con fallbacks */
+@supports (font-smoothing: antialiased) {
+  * {
+    font-smoothing: antialiased;
+  }
+}
+
+@supports (text-size-adjust: 100%) {
+  html {
+    text-size-adjust: 100%;
+  }
+}
+
+/* Fallbacks para navegadores antiguos */
+@supports not (text-size-adjust: 100%) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+}
+
+@supports not (font-smoothing: antialiased) {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Configuración específica para diferentes navegadores */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  /* Webkit browsers (Chrome, Safari) */
+  html {
+    text-size-adjust: 100%;
+  }
+}
+
+@media screen and (-moz-images-in-menus: 0) {
+  /* Firefox */
+  html {
+    text-size-adjust: 100%;
+  }
+}
+
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+  /* Internet Explorer */
+  html {
+    -ms-text-size-adjust: 100%;
+  }
+}
+
+/* =============================================================================
+   COMPONENTES PERSONALIZADOS
+   ============================================================================= */
+
+/* Botones personalizados */
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+}
+
+/* Cards personalizados */
+.card {
+  @apply bg-white rounded-lg shadow-md border border-gray-200 p-6;
+}
+
+/* Inputs personalizados */
+.input-field {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+/* =============================================================================
+   UTILIDADES ADICIONALES
+   ============================================================================= */
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Selección de texto personalizada */
+::selection {
+  background-color: #3b82f6;
+  color: white;
+}
+
+::-moz-selection {
+  background-color: #3b82f6;
+  color: white;
+}
+
+/* Estilos para la interfaz de chat */
+.chat-interface {
+  max-width: 600px;
+  margin: 0 auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+}
+
+.chat-header {
+  background-color: #f0f0f0;
+  padding: 10px 15px;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.model-status {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.chat-messages {
+  flex-grow: 1;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 500px;
+  min-height: 400px;
+  background-color: #f9f9f9;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  overscroll-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: thin;
+}
+
+.message {
+  max-width: 80%;
+  padding: 10px;
+  border-radius: 8px;
+  word-wrap: break-word;
+}
+
+.message.user {
+  align-self: flex-end;
+  background-color: #007bff;
+  color: white;
+  margin-left: auto;
+}
+
+.message.ai {
+  align-self: flex-start;
+  background-color: #e9ecef;
+  color: black;
+  margin-right: auto;
+}
+
+.message.loading {
+  font-style: italic;
+  color: #666;
+}
+
+.chat-input {
+  display: flex;
+  padding: 10px;
+  background-color: white;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.chat-input input {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  margin-right: 10px;
+}
+
+.chat-input button {
+  padding: 10px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chat-input button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   ESTILOS ESPECÍFICOS PARA EL ORBE
+   ============================================================================= */
+
+/* Canvas del orbe */
+.hero-orb canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Contenedor del orbe */
+.hero-orb {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(124,58,237,0.25), transparent), 
+              radial-gradient(900px 500px at 90% -10%, rgba(94,231,255,0.18), transparent), 
+              linear-gradient(180deg, #091017 0%, #0b0f14 60%);
+}
+
+/* Indicadores del orbe */
+.orb-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+.orb-core {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #5ee7ff;
+  border-style: dashed;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  background: rgba(94, 231, 255, 0.1);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(94, 231, 255, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(94, 231, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(94, 231, 255, 0);
+  }
+}
+
+/* Overlay de carga */
+.orb-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 20;
+}
+
+/* Formularios modales */
+.orb-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+}
+
+.orb-modal-content {
+  background: #1f2937;
+  padding: 2rem;
+  border-radius: 1rem;
+  border: 2px solid;
+  max-width: 28rem;
+  width: 100%;
+  margin: 0 1rem;
+}
+
+.orb-modal-content.cyan {
+  border-color: #5ee7ff;
+}
+
+.orb-modal-content.purple {
+  border-color: #8b5cf6;
+}
+
+/* Botones del orbe */
+.orb-btn {
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+}
+
+.orb-btn-cyan {
+  background: linear-gradient(135deg, #5ee7ff, #0099cc);
+  color: white;
+  box-shadow: 0 4px 15px rgba(94, 231, 255, 0.4);
+}
+
+.orb-btn-cyan:hover {
+  background: linear-gradient(135deg, #00b8e6, #0088b3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(94, 231, 255, 0.6);
+}
+
+.orb-btn-purple {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: white;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+}
+
+.orb-btn-purple:hover {
+  background: linear-gradient(135deg, #7c3aed, #5855eb);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+}
+
+/* Inputs del orbe */
+.orb-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #374151;
+  border: 1px solid #4b5563;
+  border-radius: 0.5rem;
+  color: white;
+  placeholder-color: #9ca3af;
+}
+
+.orb-input:focus {
+  outline: none;
+  border-color: #5ee7ff;
+  ring: 2px;
+  ring-color: rgba(94, 231, 255, 0.2);
+}
+
+/* Labels del orbe */
+.orb-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #d1d5db;
+  margin-bottom: 0.5rem;
+}
+
+/* Checkbox del orbe */
+.orb-checkbox {
+  margin-right: 0.5rem;
+  color: #5ee7ff;
+  focus-ring: #5ee7ff;
+}
+
+/* Enlaces del orbe */
+.orb-link {
+  color: #5ee7ff;
+  hover-color: #00b8e6;
+  font-weight: 500;
+}
+
+.orb-link-purple {
+  color: #8b5cf6;
+  hover-color: #7c3aed;
+  font-weight: 500;
+}

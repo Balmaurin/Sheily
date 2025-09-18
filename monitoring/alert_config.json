@@ -1,0 +1,12 @@
+{
+  "alert_thresholds": {
+    "cpu_percent": 90,
+    "memory_percent": 85,
+    "disk_usage_percent": 90,
+    "error_rate": 5.0,
+    "response_time_ms": 5000
+  },
+  "alert_cooldown_minutes": 15,
+  "max_alerts_per_hour": 10,
+  "auto_resolve_hours": 2
+}

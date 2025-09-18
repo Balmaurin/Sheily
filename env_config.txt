@@ -1,0 +1,26 @@
+# Credenciales de autenticación para Sheily AI
+ADMIN_EMAIL=admin@sheily-ai.com
+ADMIN_PASSWORD=AdminSecure2024!
+ADMIN_USERNAME=admin
+
+# Usuario de prueba
+TEST_EMAIL=test@sheily-ai.com
+TEST_PASSWORD=TestPassword123!
+TEST_USERNAME=test_user
+
+# Usuario demo
+DEMO_EMAIL=demo@sheily-ai.com
+DEMO_PASSWORD=DemoPassword123!
+DEMO_USERNAME=demo
+
+# Configuración JWT (genera una clave segura)
+JWT_SECRET_KEY=your-super-secret-jwt-key-change-this-in-production
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Base de datos (configura según tu setup)
+DATABASE_URL=sqlite:///./sheily_ai.db
+
+# Puerto del servidor
+PORT=8001
+
