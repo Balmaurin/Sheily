@@ -1,0 +1,14 @@
+# INTRUCCIONES PARA CONFIGURAR SLACK:
+#
+# 1. Ve a https://slack.com/apps
+# 2. Busca "Incoming WebHooks" e instálalo
+# 3. Crea un nuevo webhook y selecciona el canal
+# 4. Copia la URL que te da Slack
+# 5. REEMPLAZA la línea de abajo con tu URL real
+# 6. Quita el símbolo # del inicio de la línea
+#
+# URL de ejemplo:
+# https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+#
+# TU URL REAL (descomenta y reemplaza):
+#SLACK_WEBHOOK_URL=https://hooks.slack.com/services/TU/WEBHOOK/AQUI
