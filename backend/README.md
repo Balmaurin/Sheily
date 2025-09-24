@@ -7,7 +7,8 @@ Backend completo y funcional para el sistema de IA inteligente Sheily AI, con au
 - 🔐 **Autenticación JWT Segura** con bcrypt y validación robusta
 - 🧠 **Chat con IA** usando modelos Phi-3 (4-bit para chat, 16-bit para entrenamiento)
 - 📊 **Dashboard Completo** con métricas reales y estadísticas
-- 🎯 **Sistema de Entrenamiento** con 32 ramas especializadas
+- 🎯 **Sistema de Entrenamiento** con 35 ramas especializadas
+- 🧩 **Banco de Ejercicios Verificado** con CRUD completo por rama, validación del 95 % y generación de datasets listos para LoRA
 - 💾 **Base de Datos PostgreSQL** con esquema optimizado
 - 📈 **Monitoreo en Tiempo Real** via WebSocket
 - 🚨 **Sistema de Alertas** automático por email
@@ -60,6 +61,17 @@ npm run init-db
 # Ejecutar migraciones (opcional)
 npm run migrate
 ```
+
+### Tablas clave del esquema
+
+| Tabla | Descripción |
+|-------|-------------|
+| `branches` | Catálogo oficial de las 35 ramas con dominio, descripción y mapa de competencias |
+| `branch_exercises` | Banco de ejercicios por rama, tipo y nivel con metadatos verificables |
+| `branch_exercise_answers` | Respuestas oficiales, explicación y trazabilidad de validación |
+| `branch_exercise_options` | Opciones normalizadas para ejercicios de respuesta múltiple |
+| `user_branch_attempts` | Registro auditable de cada intento realizado por los usuarios |
+| `user_branch_progress` | Estado agregado de progreso, tokens y validaciones por rama/nivel |
 
 ### 3. Configurar Variables de Entorno
 
@@ -144,6 +156,23 @@ ALERT_EMAIL_PASS=AlertPassword2025!
 | `GET` | `/api/training/progress` | Progreso del usuario |
 | `GET` | `/api/training/dashboard` | Dashboard de entrenamiento |
 
+### 🧩 Ejercicios por rama
+
+> **Notas:** Estos endpoints requieren autenticación JWT. Las operaciones `POST`, `PUT` y `DELETE` sólo están disponibles para roles `admin`, `super_admin` o `editor` y necesitan una base de datos PostgreSQL activa (no SQLite).
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/branches` | Lista todas las ramas y, opcionalmente, el progreso del usuario autenticado |
+| `GET` | `/api/branches/:branchKey` | Obtiene el detalle de una rama concreta y su progreso asociado |
+| `GET` | `/api/branches/:branchKey/exercises` | Consulta ejercicios por rama con filtros por tipo, nivel y ámbito |
+| `POST` | `/api/branches/:branchKey/exercises` | Crea un ejercicio oficial para la rama (requiere rol autorizado) |
+| `PUT` | `/api/branches/:branchKey/exercises/:exerciseId` | Actualiza en bloque el ejercicio y sus opciones oficiales |
+| `DELETE` | `/api/branches/:branchKey/exercises/:exerciseId` | Elimina un ejercicio y sus opciones asociadas |
+| `GET` | `/api/branches/:branchKey/progress` | Recupera el progreso del usuario autenticado en la rama |
+| `POST` | `/api/branches/:branchKey/progress` | Registra o valida un avance con métricas verificadas |
+| `PUT` | `/api/branches/:branchKey/progress/:progressId` | Ajusta un registro de progreso existente |
+| `DELETE` | `/api/branches/:branchKey/progress/:progressId` | Elimina el progreso del usuario para un nivel específico |
+
 ### 📊 Dashboard y Sistema
 
 | Método | Endpoint | Descripción |
@@ -191,6 +220,8 @@ ALERT_EMAIL_PASS=AlertPassword2025!
 - **user_tokens**: Tokens y créditos de usuario
 - **training_sessions**: Sesiones de entrenamiento
 - **training_exercises**: Ejercicios de entrenamiento
+- **branch_exercises**: Banco de ejercicios por rama y ámbito
+- **branch_exercise_answers**: Respuestas oficiales asociadas a cada ejercicio
 - **chat_sessions**: Sesiones de chat
 - **chat_messages**: Mensajes de chat
 - **chat_conversations**: Conversaciones completas
@@ -206,6 +237,18 @@ ALERT_EMAIL_PASS=AlertPassword2025!
 - `generate_training_sessions()`: Generar sesiones de entrenamiento
 - `get_training_statistics()`: Obtener estadísticas reales
 - `cleanup_training_data()`: Limpiar datos de entrenamiento
+
+### Generación de ejercicios por rama
+
+Para crear o actualizar los ejercicios oficiales de las 35 macro-ramas ejecuta:
+
+```bash
+python scripts/generate_branch_exercises.py --levels 20
+```
+
+El script recorre cada rama y ámbito configurado, genera preguntas de los tres
+tipos soportados y almacena tanto los enunciados como sus respuestas en las
+tablas `branch_exercises` y `branch_exercise_answers`.
 
 ## 🧪 Testing
 

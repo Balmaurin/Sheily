@@ -15,6 +15,8 @@ type Message = {
     model_used: string;
     response_time: number;
     tokens_used: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
   };
 };
 
@@ -22,43 +24,43 @@ export function AIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
-      content: '¡Hola! Soy Sheily AI, tu asistente inteligente conectado a través del Gateway. Estoy aquí para ayudarte con consultas, análisis y procesamiento inteligente usando el modelo Llama-3.2-3B-Instruct-Q8_0. ¿En qué puedo ayudarte hoy?',
+      content:
+        '¡Hola! Soy Sheily AI, tu asistente inteligente conectado directamente al servidor Llama local. Estoy aquí para ayudarte con consultas, análisis y respuestas detalladas usando el modelo Llama-3.2-3B-Instruct-Q8_0. ¿En qué puedo ayudarte hoy?',
       sender: 'ai',
       timestamp: Date.now(),
       modelInfo: {
-        model_used: 'Sheily AI Gateway (Llama-3.2-3B-Instruct-Q8_0)',
+        model_used: 'Servidor LLM local (Llama-3.2-3B-Instruct-Q8_0)',
         response_time: 0.1,
-        tokens_used: 45
-      }
-    }
+        tokens_used: 45,
+        prompt_tokens: 30,
+        completion_tokens: 15,
+      },
+    },
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [modelInfo, setModelInfo] = useState({
-    name: "Sheily AI Gateway",
-    subtitle: "Sistema inteligente con Llama-3.2-3B-Instruct-Q8_0",
-    purpose: "Gateway inteligente que conecta el dashboard con el modelo Llama 3.2, proporcionando respuestas contextuales y de alta calidad.",
+    name: 'Sheily AI LLM local',
+    subtitle: 'Asistente inteligente con Llama-3.2-3B-Instruct-Q8_0',
+    purpose:
+      'El dashboard se comunica directamente con el servidor Llama local para entregar respuestas rápidas y contextuales.',
     capabilities: [
-      "Procesamiento inteligente de consultas vía Gateway",
-      "Clasificación automática de dominios",
-      "Gestión optimizada de conexiones LLM",
-      "Métricas detalladas de rendimiento",
-      "Sistema de calidad de respuestas",
-      "Arquitectura de microservicios escalable"
+      'Respuestas conversacionales en español',
+      'Procesamiento directo desde el dashboard',
+      'Pipeline interno draft → critic → fix',
+      'Baja latencia al ejecutarse en local',
     ],
-    backend_model: "Llama-3.2-3B-Instruct-Q8_0",
-    quantization: "Q8_0",
-    parameters: "3B parámetros",
-    memory: "~2.2GB VRAM",
-    context: "4096 tokens",
-    gateway_status: "checking",
-    connections: null,
+    backend_model: 'Llama-3.2-3B-Instruct-Q8_0',
+    quantization: 'Q8_0',
+    parameters: '3B parámetros',
+    memory: '~2.2GB VRAM',
+    context: '4096 tokens',
+    service_status: 'checking',
     restrictions: [
-      "Limitado por contexto de 4096 tokens",
-      "Requiere conexión con Gateway Sheily AI",
-      "Depende de disponibilidad del LLM Server",
-      "Procesamiento inteligente de dominios"
-    ]
+      'Limitado por contexto de 4096 tokens',
+      'Requiere que el servidor LLM local esté activo',
+      'Sin pasarelas intermedias',
+    ],
   });
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
@@ -77,7 +79,8 @@ export function AIChat() {
       try {
         const info = await chatService.getModelInfo();
         setModelInfo(info);
-        setConnectionStatus('connected');
+        const healthy = await chatService.checkModelHealth();
+        setConnectionStatus(healthy ? 'connected' : 'disconnected');
       } catch (error) {
         console.error('Error cargando información del modelo:', error);
         setConnectionStatus('disconnected');
@@ -92,18 +95,10 @@ export function AIChat() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        // Verificar conexión al Gateway Sheily
-        const response = await fetch('http://localhost:8080/health', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        const isHealthy = response.ok && response.status === 200;
+        const isHealthy = await chatService.checkModelHealth();
         setConnectionStatus(isHealthy ? 'connected' : 'disconnected');
       } catch (error) {
-        console.warn('Error verificando conexión:', error);
+        console.warn('Error verificando conexión con el servidor LLM:', error);
         setConnectionStatus('disconnected');
       }
     };
@@ -122,9 +117,11 @@ export function AIChat() {
       sender: 'ai',
       timestamp: Date.now(),
       modelInfo: {
-        model_used: 'Sheily AI Gateway',
+        model_used: 'Servidor LLM local',
         response_time: 0.1,
-        tokens_used: 15
+        tokens_used: 15,
+        prompt_tokens: 8,
+        completion_tokens: 7,
       }
     }]);
 
@@ -159,7 +156,6 @@ export function AIChat() {
     setIsTyping(true);
 
     try {
-      // Enviar mensaje a través del Gateway Sheily AI
       const response = await chatService.sendMessage({ prompt: input.trim() });
 
       // Validar respuesta del servidor
@@ -173,9 +169,11 @@ export function AIChat() {
         sender: 'ai',
         timestamp: Date.now(),
         modelInfo: {
-          model_used: response.model_used || 'Sheily AI Gateway',
+          model_used: response.model_used || 'Servidor LLM local',
           response_time: response.response_time || 0,
-          tokens_used: response.tokens_used || 0
+          tokens_used: response.tokens_used || 0,
+          prompt_tokens: response.prompt_tokens,
+          completion_tokens: response.completion_tokens,
         }
       };
 
@@ -184,7 +182,7 @@ export function AIChat() {
       // Notificación de éxito con más detalle
       toast({
         title: "Mensaje enviado correctamente",
-        description: `Respuesta generada por ${response.model_used} en ${response.response_time?.toFixed(2) || 'N/A'}s`,
+        description: `Respuesta generada por ${response.model_used} en ${response.response_time.toFixed(2)}s`,
       });
 
     } catch (error: any) {
@@ -282,15 +280,15 @@ export function AIChat() {
                   <span className="font-medium">Contexto:</span>
                   <span className="text-blue-600">{modelInfo.context}</span>
                 </div>
-                {modelInfo.gateway_status && (
+                {modelInfo.service_status && (
                   <div className="flex justify-between">
-                    <span className="font-medium">Estado Gateway:</span>
+                    <span className="font-medium">Estado del servicio:</span>
                     <span className={`text-sm px-2 py-1 rounded ${
-                      modelInfo.gateway_status === 'running'
+                      modelInfo.service_status === 'running'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {modelInfo.gateway_status}
+                      {modelInfo.service_status}
                     </span>
                   </div>
                 )}
@@ -315,7 +313,7 @@ export function AIChat() {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="text-center">💬 Chat con Sheily AI Gateway</CardTitle>
+            <CardTitle className="text-center">💬 Chat con Sheily AI (LLM local)</CardTitle>
             <div className="flex items-center space-x-2">
               {/* Indicador de conexión */}
               <div className="flex items-center space-x-2">
@@ -373,6 +371,14 @@ export function AIChat() {
                         <span>Tiempo: {msg.modelInfo.response_time.toFixed(2)}s</span>
                         <span className="mx-2">•</span>
                         <span>Tokens: {msg.modelInfo.tokens_used}</span>
+                        {(msg.modelInfo.prompt_tokens !== undefined || msg.modelInfo.completion_tokens !== undefined) && (
+                          <>
+                            <span className="mx-2">•</span>
+                            <span>
+                              Prompt/Salida: {msg.modelInfo.prompt_tokens ?? '—'} / {msg.modelInfo.completion_tokens ?? '—'}
+                            </span>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -413,7 +419,7 @@ export function AIChat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Escribe tu consulta para Sheily AI Gateway (máximo 2000 caracteres)..."
+          placeholder="Escribe tu consulta para Sheily AI (máximo 2000 caracteres)..."
                   className="flex-1 p-3 border-2 border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-black font-medium disabled:bg-gray-100"
                   disabled={isTyping}
                   maxLength={2000}

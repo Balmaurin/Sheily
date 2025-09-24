@@ -685,7 +685,7 @@ def handle_chat_input(send_btn_clicks, n_submit, user_message, chat_history):
         try:
             # Enviar mensaje al servidor LLM
             response = requests.post(
-                "http://127.0.0.1:5000/chat",
+                "http://127.0.0.1:8005/chat",
                 json={"messages": llm_messages},
                 timeout=120,
             )

@@ -164,7 +164,7 @@ export function HeroOrb() {
           source.loop = false;
           
           // Configurar aceleración progresiva del sonido
-          let startTime = Date.now();
+          const startTime = Date.now();
           const totalDuration = 7000; // 7 segundos total
           
           const accelerationInterval = setInterval(() => {
@@ -269,7 +269,7 @@ export function HeroOrb() {
       chargingGainRef.current = mainGain;
       
       // Configurar aceleración progresiva del sonido sintético
-      let startTime = Date.now();
+      const startTime = Date.now();
       const totalDuration = 7000; // 7 segundos total
       
       const accelerationInterval = setInterval(() => {

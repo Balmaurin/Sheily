@@ -1,123 +1,29 @@
-# Estado del Sistema LLM SHEILY AI
+# Estado del Servidor LLM Local
 
-## ✅ **Lo que está funcionando:**
+## ✅ Componentes operativos
 
-### 1. **Infraestructura Completa**
-- ✅ Estructura de directorios creada (`llm/`, `scripts/`)
-- ✅ Cliente LLM unificado (`backend/llm_client.py`)
-- ✅ Integración con orquestador (`modules/orchestrator/main_orchestrator.py`)
-- ✅ Configuración actualizada (`backend/config.env`)
-- ✅ Scripts de automatización (`setup_llm_complete.sh`, `test_llm_integration.py`)
-- ✅ Documentación completa (`README_LLM.md`)
+| Componente | Estado | Descripción |
+|------------|--------|-------------|
+| Servidor Flask (`backend/llm_server.py`) | ✅ | Expone `/v1/chat/completions`, `/chat`, `/health` y `/v1/models`.
+| Modelo Llama‑3.2‑3B‑Instruct‑Q8_0 | ✅ | Archivo GGUF cargado mediante `llama_cpp`.
+| Cliente Python (`backend/llm_client.py`) | ✅ | Pipeline draft → critic → fix contra el servidor local.
+| Integración backend Node | ✅ | Servicios Express consumen exclusivamente el endpoint local.
 
-### 2. **Servicio Ollama**
-- ✅ Ollama instalado y ejecutándose en puerto 11434
-- ✅ Modelo base `llama3.2:3b` disponible
-- ✅ Modelo personalizado `sheily-llm:latest` creado
-- ✅ API REST funcionando (`/api/tags`, `/api/generate`)
+## 🔁 Flujo actual
 
-### 3. **Cliente LLM**
-- ✅ Cliente unificado compatible con Ollama y OpenAI
-- ✅ Pipeline mejorado draft → critic → fix
-- ✅ Health checks y manejo de errores
-- ✅ Configuración flexible por variables de entorno
+1. El servidor se inicia con `python backend/llm_server.py` y carga el modelo desde `LLM_MODEL_PATH`.
+2. El backend llama a `/v1/chat/completions` para cada mensaje del dashboard.
+3. Las métricas de uso y tiempo de inferencia se devuelven directamente al frontend; no hay datos simulados.
 
-## ⚠️ **Problema Actual:**
+## ⚠️ Advertencias
 
-### **Error del Model Runner**
-```
-Error: model runner has unexpectedly stopped, this may be due to resource limitations or an internal error
-```
+- Si el archivo GGUF no está disponible, `/health` responderá con `status: error` y el backend propagará la incidencia al usuario.
+- No existe infraestructura de respaldo: cualquier interrupción del servidor detendrá el chat hasta que el modelo vuelva a cargarse.
 
-**Posibles causas:**
-1. **Limitaciones de recursos**: El modelo puede requerir más RAM/CPU
-2. **Problema de configuración**: Parámetros del modelo incompatibles
-3. **Conflicto de versiones**: Incompatibilidad entre Ollama y el modelo
+## ✅ Próximos pasos recomendados
 
-## 🔧 **Soluciones Disponibles:**
+- Automatizar la verificación de disponibilidad del archivo GGUF antes de iniciar el backend.
+- Añadir scripts de supervisión que reinicien el servidor en caso de fallo.
 
-### **Opción 1: Usar Modelo Base (Recomendado)**
-```bash
-# Configurar para usar modelo base que funciona
-export LLM_MODEL_NAME=llama3.2:3b
-```
+El entorno ya no depende de Ollama ni de servicios de Hugging Face. Toda la inferencia se resuelve localmente.
 
-### **Opción 2: Recrear Modelo Personalizado**
-```bash
-# Eliminar modelo problemático
-ollama rm sheily-llm
-
-# Crear modelo más simple
-cat > llm/Modelfile.simple << EOF
-FROM llama3.2:3b
-PARAMETER temperature 0.2
-SYSTEM Eres SHEILY, un asistente útil en español.
-EOF
-
-ollama create sheily-llm -f llm/Modelfile.simple
-```
-
-### **Opción 3: Usar Sistema Existente**
-El sistema ya tiene un servidor LLM funcionando en el puerto 5000. Podemos configurar el cliente para usar ese endpoint:
-
-```bash
-# Configurar para usar servidor existente
-export LLM_MODE=openai
-export LLM_BASE_URL=http://localhost:5000
-```
-
-### **Opción 4: Solución Docker (Alternativa)**
-```bash
-# Usar el compose que creamos
-docker-compose -f llm/docker-compose.llm.yml up -d
-```
-
-## 🚀 **Próximos Pasos Recomendados:**
-
-### **Paso 1: Probar con Modelo Base**
-```bash
-# Actualizar configuración
-sed -i 's/LLM_MODEL_NAME=.*/LLM_MODEL_NAME=llama3.2:3b/' backend/config.env
-
-# Probar sistema
-python3 scripts/test_simple_llm.py
-```
-
-### **Paso 2: Si funciona, personalizar gradualmente**
-```bash
-# Crear modelo personalizado simple
-ollama create sheily-simple -f llm/Modelfile.simple
-
-# Probar modelo personalizado
-ollama run sheily-simple "Hola"
-```
-
-### **Paso 3: Integrar con Orquestador**
-```python
-from modules.orchestrator.main_orchestrator import MainOrchestrator
-
-orchestrator = MainOrchestrator()
-response = orchestrator.process_query("¿Cómo optimizar una base de datos?")
-```
-
-## 📊 **Estado de Componentes:**
-
-| Componente | Estado | Notas |
-|------------|--------|-------|
-| Ollama Service | ✅ Funcionando | Puerto 11434 activo |
-| Modelo Base | ✅ Disponible | llama3.2:3b |
-| Modelo Personalizado | ⚠️ Problemático | sheily-llm:latest |
-| Cliente LLM | ✅ Implementado | Listo para usar |
-| Orquestador | ✅ Integrado | Con cliente LLM |
-| Scripts | ✅ Creados | Automatización lista |
-| Documentación | ✅ Completa | README_LLM.md |
-
-## 🎯 **Recomendación:**
-
-**Usar el modelo base `llama3.2:3b` por ahora** ya que:
-1. ✅ Está funcionando correctamente
-2. ✅ Es el mismo modelo que el personalizado
-3. ✅ El cliente LLM puede aplicar el prompt personalizado
-4. ✅ Se puede personalizar gradualmente
-
-El sistema está **95% completo** y funcional. Solo necesita ajustar la configuración del modelo.

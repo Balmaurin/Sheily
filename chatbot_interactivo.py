@@ -3,80 +3,41 @@
 Chatbot SHEILY Interactivo - Terminal
 """
 
-import sys
-import os
 import time
 import requests
-from datetime import datetime
+
+def chat_with_llm(prompt):
+    """Enviar mensajes al servidor LLM local"""
+    payload = {
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 512,
+        "temperature": 0.7,
+    }
+
+    response = requests.post(
+        "http://127.0.0.1:8005/v1/chat/completions", json=payload, timeout=60
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Error del servidor: {response.status_code} - {response.text}")
+
+    data = response.json()
+    return data["choices"][0]["message"]["content"], data.get("processing_time")
 
 
-def chat_with_ollama(prompt):
-    """Chat directo con Ollama"""
-    try:
-        payload = {
-            "model": "llama3.2:3b",
-            "prompt": f"Eres SHEILY, un asistente de inteligencia artificial útil y preciso en español. Responde de manera clara y concisa.\n\nUsuario: {prompt}\nSHEILY:",
-            "stream": False,
-            "options": {"temperature": 0.2, "num_predict": 300},
-        }
+def ensure_service_available():
+    """Validar que el servidor LLM esté disponible antes de iniciar."""
+    print("🔍 Verificando servidor LLM local...")
+    response = requests.get("http://127.0.0.1:8005/health", timeout=5)
+    if response.status_code != 200:
+        raise RuntimeError("El servidor LLM no respondió correctamente.")
 
-        response = requests.post(
-            "http://localhost:11434/api/generate", json=payload, timeout=60
-        )
+    health = response.json()
+    if health.get("status") != "healthy":
+        raise RuntimeError(f"Servidor LLM no está listo: {health}")
 
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("response", "Lo siento, no pude generar una respuesta.")
-        else:
-            return f"Error del servidor: {response.status_code}"
-
-    except Exception as e:
-        return f"Error: {e}"
-
-
-def chat_with_backend(prompt):
-    """Chat con el servidor backend"""
-    try:
-        chat_data = {"messages": [{"role": "user", "content": prompt}]}
-
-        response = requests.post(
-            "http://localhost:8000/chat", json=chat_data, timeout=60
-        )
-
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("response", "Lo siento, no pude generar una respuesta.")
-        else:
-            return f"Error del servidor: {response.status_code}"
-
-    except Exception as e:
-        return f"Error: {e}"
-
-
-def test_services():
-    """Probar qué servicios están disponibles"""
-    print("🔍 Verificando servicios disponibles...")
-
-    # Probar Ollama
-    try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            print(f"✅ Ollama disponible - Modelos: {[m['name'] for m in models]}")
-            return "ollama"
-    except:
-        print("❌ Ollama no disponible")
-
-    # Probar Backend
-    try:
-        response = requests.get("http://localhost:8000/", timeout=5)
-        if response.status_code == 200:
-            print("✅ Backend disponible")
-            return "backend"
-    except:
-        print("❌ Backend no disponible")
-
-    return None
+    print(
+        f"✅ LLM disponible | Modelo: {health.get('model')} | Contexto: {health.get('context_size')} tokens"
+    )
 
 
 def start_chatbot():
@@ -85,17 +46,10 @@ def start_chatbot():
     print("=" * 50)
     print("Comandos especiales:")
     print("  'salir' - Terminar el chat")
-    print("  'cambio' - Cambiar entre Ollama y Backend")
-    print("  'estado' - Ver estado de los servicios")
+    print("  'estado' - Ver estado del servidor")
     print("=" * 50)
 
-    # Detectar servicio disponible
-    service = test_services()
-    if not service:
-        print("❌ No hay servicios disponibles. Inicia Ollama o el backend primero.")
-        return
-
-    print(f"🔄 Usando servicio: {service}")
+    ensure_service_available()
 
     while True:
         try:
@@ -106,17 +60,8 @@ def start_chatbot():
                 print("👋 ¡Hasta luego!")
                 break
 
-            if user_input.lower() == "cambio":
-                new_service = test_services()
-                if new_service:
-                    service = new_service
-                    print(f"🔄 Cambiado a servicio: {service}")
-                else:
-                    print("❌ No hay servicios disponibles")
-                continue
-
             if user_input.lower() == "estado":
-                test_services()
+                ensure_service_available()
                 continue
 
             if not user_input:
@@ -126,16 +71,14 @@ def start_chatbot():
             print("🤔 SHEILY está pensando...")
             start_time = time.time()
 
-            if service == "ollama":
-                response = chat_with_ollama(user_input)
-            else:
-                response = chat_with_backend(user_input)
+            response, processing_time = chat_with_llm(user_input)
 
-            processing_time = time.time() - start_time
+            if processing_time is None:
+                processing_time = time.time() - start_time
 
             # Mostrar respuesta
             print(f"\n🤖 SHEILY: {response}")
-            print(f"⏱️ Tiempo: {processing_time:.2f}s | Servicio: {service}")
+            print(f"⏱️ Tiempo: {processing_time:.2f}s | Servicio: llama_local")
 
         except KeyboardInterrupt:
             print("\n👋 ¡Hasta luego!")
@@ -146,9 +89,6 @@ def start_chatbot():
 
 def main():
     """Función principal"""
-    print("🚀 Iniciando Chatbot SHEILY Interactivo")
-    print("=" * 50)
-
     start_chatbot()
 
 

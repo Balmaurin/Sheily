@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -27,30 +27,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelPerformanceDashboard } from "@/components/dashboard/ModelPerformanceDashboard";
 import { ProjectsManager } from "@/components/dashboard/projects-manager";
 import { TokenVault } from "@/components/dashboard/token-vault";
-import { TrainingSessionsManager } from "@/components/dashboard/TrainingSessionsManager";
 import { AIChat } from "@/components/dashboard/ai-chat";
 import { Overview } from "@/components/dashboard/Overview";
 import { Datasets } from "@/components/dashboard/Datasets";
-import { Telemetry } from "@/components/dashboard/Telemetry";
 import { Security } from "@/components/dashboard/Security";
 import { Settings as SettingsComponent } from "@/components/dashboard/Settings";
-import { Rewards } from "@/components/dashboard/Rewards";
-import { TrainingStudio } from "@/components/dashboard/TrainingStudio";
 import { TrainingSection } from "@/components/dashboard/training-section";
-import { TrainingManagement } from "@/components/dashboard/TrainingManagement";
-import { PromptManager } from "@/components/dashboard/PromptManager";
 import { ExerciseCreator } from "@/components/dashboard/exercise-system/ExerciseCreator";
 import { ExerciseRunner } from "@/components/dashboard/exercise-system/ExerciseRunner";
 import { TrainingController } from "@/components/dashboard/training-control/TrainingController";
 import { PersonalMemoryChat } from "@/components/dashboard/personal-memory-chat/PersonalMemoryChat";
 import { TokenVaultBlockchain } from "@/components/dashboard/token-vault/TokenVaultBlockchain";
+import { PinAccessDialog } from "@/components/dashboard/PinAccessDialog";
 
 // Servicios
-import { TrainingService } from "../../services/trainingService";
+
+const PROTECTED_TABS: Record<string, string> = {
+  tokens: "la caja fuerte de tokens",
+  "memory-chat": "tu memoria personal",
+  wallet: "la wallet Phantom del proyecto",
+};
 
 export default function DashboardPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState('overview');
+  const [unlockedTabs, setUnlockedTabs] = useState<Record<string, boolean>>({});
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pendingProtectedTab, setPendingProtectedTab] = useState<string | null>(null);
+
+  const pendingLabel = useMemo(() => {
+    if (!pendingProtectedTab) return 'esta sección protegida';
+    return PROTECTED_TABS[pendingProtectedTab] ?? 'esta sección protegida';
+  }, [pendingProtectedTab]);
 
   // Verificar autenticación
   useEffect(() => {
@@ -58,6 +67,34 @@ export default function DashboardPage() {
       router.push('/');
     }
   }, [isAuthenticated, router]);
+
+  const handleTabChange = (value: string) => {
+    const requiresPin = Boolean(PROTECTED_TABS[value]);
+    if (requiresPin && !unlockedTabs[value]) {
+      setPendingProtectedTab(value);
+      setPinDialogOpen(true);
+      return;
+    }
+    setActiveTab(value);
+  };
+
+  const handlePinSuccess = () => {
+    if (!pendingProtectedTab) {
+      return;
+    }
+
+    setUnlockedTabs((prev) => ({ ...prev, [pendingProtectedTab]: true }));
+    setActiveTab(pendingProtectedTab);
+    setPendingProtectedTab(null);
+    setPinDialogOpen(false);
+  };
+
+  const handlePinDialogChange = (open: boolean) => {
+    setPinDialogOpen(open);
+    if (!open) {
+      setPendingProtectedTab(null);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -89,8 +126,8 @@ export default function DashboardPage() {
               </div>
 
               {/* Dashboard Principal con Pestañas */}
-              <Tabs defaultValue="overview" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-12 text-xs">
+              <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+                <TabsList className="inline-flex w-full flex-wrap justify-between gap-2 text-xs">
                   <TabsTrigger value="overview" className="flex items-center space-x-2">
                     <span role="img" aria-label="Brain">🧠</span>
                     <span>Visión General</span>
@@ -133,23 +170,21 @@ export default function DashboardPage() {
                   </TabsTrigger>
                   <TabsTrigger value="memory-chat" className="flex items-center space-x-2">
                     <span role="img" aria-label="Lock">🔒</span>
-                    <span>Memoria IA</span>
+                    <span>Memoria Personal</span>
                   </TabsTrigger>
-                  <TabsTrigger value="token-vault" className="flex items-center space-x-2">
+                  <TabsTrigger value="tokens" className="flex items-center space-x-2">
                     <span role="img" aria-label="Coins">💰</span>
                     <span>Tokens SHEILY</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="wallet" className="flex items-center space-x-2">
+                    <span role="img" aria-label="Wallet">👛</span>
+                    <span>Wallet Phantom</span>
                   </TabsTrigger>
                 </TabsList>
 
                 {/* Pestaña: Visión General */}
                 <TabsContent value="overview" className="space-y-6">
-                  <Overview onGoTraining={() => {
-                    // Cambiar a la pestaña de entrenamiento
-                    const trainingTab = document.querySelector('[value="training"]') as HTMLElement;
-                    if (trainingTab) {
-                      trainingTab.click();
-                    }
-                  }} />
+                  <Overview onGoTraining={() => handleTabChange('training')} />
                 </TabsContent>
 
                 {/* Pestaña: Modelos - Sistema LoRA con 35 Ramas Especializadas */}
@@ -313,12 +348,23 @@ export default function DashboardPage() {
                   <PersonalMemoryChat />
                 </TabsContent>
 
-                {/* Pestaña: Caja Fuerte SHEILY */}
-                <TabsContent value="token-vault" className="space-y-6">
+                {/* Pestaña: Tokens SHEILY */}
+                <TabsContent value="tokens" className="space-y-6">
+                  <TokenVault />
+                </TabsContent>
+
+                {/* Pestaña: Wallet Phantom & Blockchain */}
+                <TabsContent value="wallet" className="space-y-6">
                   <TokenVaultBlockchain />
                 </TabsContent>
               </Tabs>
             </div>
+            <PinAccessDialog
+              open={pinDialogOpen}
+              onOpenChange={handlePinDialogChange}
+              sectionLabel={pendingLabel}
+              onUnlock={handlePinSuccess}
+            />
           </DatasetProvider>
         </VaultProvider>
       </UserProvider>

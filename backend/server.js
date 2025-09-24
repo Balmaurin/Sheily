@@ -32,6 +32,12 @@ const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 12;
 const SESSION_TIMEOUT = parseInt(process.env.SESSION_TIMEOUT) || 86400000;
+const isSQLite = (process.env.DB_TYPE || '').toLowerCase() === 'sqlite';
+const SUPPORTED_EXERCISE_TYPES = ['yes_no', 'true_false', 'multiple_choice'];
+const TOKENS_PER_VALIDATED_EXERCISE = parseInt(
+  process.env.TOKENS_PER_VALIDATED_EXERCISE || '10',
+  10
+);
 
 // Validar configuración crítica
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
@@ -90,6 +96,329 @@ const smartCache = new SmartCache({
   defaultTTL: 300000, // 5 minutos
   policy: 'LRU'
 });
+
+const ADMIN_ROLES = new Set(['admin', 'super_admin', 'editor']);
+
+class ValidationError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.name = 'ValidationError';
+    this.status = status;
+  }
+}
+
+const ensurePostgresOperations = (res) => {
+  if (isSQLite) {
+    res.status(501).json({
+      error: 'Operación no disponible en modo SQLite. Configure PostgreSQL para administrar ejercicios y progreso de ramas.'
+    });
+    return false;
+  }
+  return true;
+};
+
+const normalizeExerciseType = (value) => {
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+  return value.trim().toLowerCase();
+};
+
+const isValidExerciseType = (value) => SUPPORTED_EXERCISE_TYPES.includes(normalizeExerciseType(value));
+
+const normalizePlainText = (value) => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  return typeof value === 'string' ? value.trim() : String(value).trim();
+};
+
+const normalizeComparisonValue = (value) => normalizePlainText(value).toLowerCase();
+
+const normalizeYesNoAnswer = (value) => {
+  const normalized = normalizeComparisonValue(value);
+  if (['si', 'sí', 'yes', 'y'].includes(normalized)) {
+    return 'sí';
+  }
+  if (['no', 'n'].includes(normalized)) {
+    return 'no';
+  }
+  return normalizePlainText(value);
+};
+
+const normalizeTrueFalseAnswer = (value) => {
+  const normalized = normalizeComparisonValue(value);
+  if (['verdadero', 'true', 'v'].includes(normalized)) {
+    return 'verdadero';
+  }
+  if (['falso', 'false', 'f'].includes(normalized)) {
+    return 'falso';
+  }
+  return normalizePlainText(value);
+};
+
+const buildExerciseOptionIndex = (exercise) => {
+  const options = [];
+  if (Array.isArray(exercise.options_detail) && exercise.options_detail.length > 0) {
+    exercise.options_detail.forEach((option) => {
+      if (!option) {
+        return;
+      }
+      const key = option.option_key ? String(option.option_key).trim().toUpperCase() : null;
+      const content = normalizePlainText(option.content);
+      if (content) {
+        options.push({ key, content });
+      }
+    });
+  } else if (Array.isArray(exercise.options)) {
+    exercise.options.forEach((option, index) => {
+      if (typeof option === 'string') {
+        options.push({ key: String.fromCharCode(65 + index), content: normalizePlainText(option) });
+      } else if (option && typeof option === 'object' && option.content) {
+        const key = option.key || option.option_key || String.fromCharCode(65 + index);
+        options.push({ key: normalizePlainText(key).toUpperCase(), content: normalizePlainText(option.content) });
+      }
+    });
+  }
+  return options;
+};
+
+const resolveMultipleChoiceSubmission = (exercise, answer, optionKey) => {
+  const options = buildExerciseOptionIndex(exercise);
+  const normalizedKey = optionKey ? optionKey.trim().toUpperCase() : null;
+  const normalizedAnswer = normalizeComparisonValue(answer);
+
+  const findByKey = (key) => options.find((option) => option.key && option.key.toUpperCase() === key);
+  const findByContent = (content) => options.find((option) => normalizeComparisonValue(option.content) === content);
+
+  let option = null;
+  let resolvedKey = normalizedKey;
+
+  if (normalizedKey) {
+    option = findByKey(normalizedKey);
+  }
+
+  if (!option && normalizedAnswer.length === 1 && /[A-Z]/.test(normalizedAnswer)) {
+    resolvedKey = normalizedAnswer.toUpperCase();
+    option = findByKey(resolvedKey);
+  }
+
+  if (!option) {
+    option = findByContent(normalizedAnswer);
+  }
+
+  if (option) {
+    return { resolvedAnswer: option.content, resolvedKey: option.key };
+  }
+
+  return { resolvedAnswer: normalizePlainText(answer), resolvedKey };
+};
+
+const evaluateSubmittedAnswer = (exercise, submission) => {
+  if (!exercise) {
+    throw new ValidationError('Ejercicio no encontrado', 404);
+  }
+
+  const submittedAnswer = normalizePlainText(submission.answer || submission.submitted_answer);
+  if (!submittedAnswer) {
+    throw new ValidationError('La respuesta enviada es obligatoria.');
+  }
+
+  let normalizedDisplayAnswer = submittedAnswer;
+  let resolvedOptionKey = submission.option_key ? submission.option_key.trim().toUpperCase() : null;
+
+  switch (normalizeExerciseType(exercise.exercise_type)) {
+    case 'yes_no':
+      normalizedDisplayAnswer = normalizeYesNoAnswer(submittedAnswer);
+      break;
+    case 'true_false':
+      normalizedDisplayAnswer = normalizeTrueFalseAnswer(submittedAnswer);
+      break;
+    case 'multiple_choice': {
+      const { resolvedAnswer, resolvedKey } = resolveMultipleChoiceSubmission(
+        exercise,
+        submittedAnswer,
+        resolvedOptionKey
+      );
+      normalizedDisplayAnswer = resolvedAnswer;
+      resolvedOptionKey = resolvedKey;
+      break;
+    }
+    default:
+      normalizedDisplayAnswer = submittedAnswer;
+  }
+
+  const normalizedSubmission = normalizeComparisonValue(normalizedDisplayAnswer);
+  const normalizedCorrect = normalizeComparisonValue(exercise.answer || '');
+  const isCorrect = normalizedSubmission === normalizedCorrect;
+  const accuracy = isCorrect ? 100 : 0;
+
+  return {
+    normalizedDisplayAnswer,
+    normalizedSubmission,
+    normalizedCorrect,
+    resolvedOptionKey,
+    isCorrect,
+    accuracy
+  };
+};
+
+const requireAdminRole = (req, res) => {
+  if (!req.user || !ADMIN_ROLES.has(req.user.role)) {
+    res.status(403).json({ error: 'Operación permitida solo para personal autorizado.' });
+    return false;
+  }
+  return true;
+};
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+};
+
+const coerceDatasetSnapshot = (snapshot) => {
+  if (!snapshot) {
+    return {};
+  }
+  if (typeof snapshot === 'object') {
+    return snapshot;
+  }
+  try {
+    return JSON.parse(snapshot);
+  } catch (error) {
+    return {};
+  }
+};
+
+const resolveOptionsPayload = ({
+  exerciseType,
+  correctAnswer,
+  optionsInput,
+  existingOptionsDetail = [],
+  existingLegacyOptions = null,
+  existingAnswer = null
+}) => {
+  const normalizedType = normalizeExerciseType(exerciseType);
+  const normalizedAnswer = typeof correctAnswer === 'string' ? correctAnswer.trim() : '';
+
+  if (!SUPPORTED_EXERCISE_TYPES.includes(normalizedType)) {
+    throw new ValidationError('Tipo de ejercicio inválido.');
+  }
+
+  const response = {
+    legacyOptions: null,
+    optionsDetail: [],
+    persistedAnswer: normalizedAnswer
+  };
+
+  if (normalizedType === 'multiple_choice') {
+    let baseOptions = [];
+
+    if (Array.isArray(optionsInput) && optionsInput.length > 0) {
+      baseOptions = optionsInput.map((option, index) => {
+        if (typeof option === 'string') {
+          const content = option.trim();
+          if (!content) {
+            throw new ValidationError('Las opciones no pueden estar vacías.');
+          }
+          return {
+            option_key: String.fromCharCode(65 + index),
+            content,
+            feedback: null
+          };
+        }
+
+        if (typeof option !== 'object' || !option) {
+          throw new ValidationError('Cada opción debe incluir como mínimo el contenido de texto.');
+        }
+
+        const content = typeof option.content === 'string' ? option.content.trim() : '';
+        if (!content) {
+          throw new ValidationError('Cada opción debe incluir contenido de texto.');
+        }
+
+        const optionKey = option.option_key ? String(option.option_key).trim() : String.fromCharCode(65 + index);
+        return {
+          option_key: optionKey,
+          content,
+          feedback: typeof option.feedback === 'string' && option.feedback.trim() ? option.feedback.trim() : null
+        };
+      });
+    } else if (existingOptionsDetail && existingOptionsDetail.length > 0) {
+      baseOptions = existingOptionsDetail.map((option, index) => ({
+        option_key: option.option_key || String.fromCharCode(65 + index),
+        content: typeof option.content === 'string' ? option.content : '',
+        feedback: option.feedback || null
+      }));
+    } else if (Array.isArray(existingLegacyOptions) && existingLegacyOptions.length > 0) {
+      baseOptions = existingLegacyOptions.map((option, index) => ({
+        option_key: String.fromCharCode(65 + index),
+        content: typeof option === 'string' ? option : String(option),
+        feedback: null
+      }));
+    }
+
+    if (baseOptions.length < 2) {
+      throw new ValidationError('Los ejercicios de opción múltiple requieren al menos dos opciones.');
+    }
+
+    const matchByKey = normalizedAnswer
+      ? baseOptions.find((opt) => opt.option_key.toLowerCase() === normalizedAnswer.toLowerCase())
+      : null;
+    const matchByContent = normalizedAnswer
+      ? baseOptions.find((opt) => opt.content.trim().toLowerCase() === normalizedAnswer.toLowerCase())
+      : null;
+
+    let persistedAnswer = normalizedAnswer;
+    if (matchByContent) {
+      persistedAnswer = matchByContent.content.trim();
+    } else if (matchByKey) {
+      persistedAnswer = matchByKey.content.trim();
+    } else if (existingAnswer) {
+      persistedAnswer = existingAnswer;
+    }
+
+    if (!persistedAnswer) {
+      throw new ValidationError('La respuesta correcta debe coincidir con una de las opciones.');
+    }
+
+    response.optionsDetail = baseOptions;
+    response.legacyOptions = baseOptions.map((option) => option.content);
+    response.persistedAnswer = persistedAnswer;
+    return response;
+  }
+
+  if (normalizedType === 'true_false') {
+    response.legacyOptions = ['verdadero', 'falso'];
+    response.optionsDetail = [
+      { option_key: 'A', content: 'verdadero', feedback: null },
+      { option_key: 'B', content: 'falso', feedback: null }
+    ];
+    const answer = normalizedAnswer || existingAnswer || 'verdadero';
+    if (!['verdadero', 'falso'].includes(answer.toLowerCase())) {
+      throw new ValidationError('La respuesta correcta para verdadero/falso debe ser "verdadero" o "falso".');
+    }
+    response.persistedAnswer = answer.toLowerCase();
+    return response;
+  }
+
+  // yes/no fallback
+  response.legacyOptions = ['sí', 'no'];
+  response.optionsDetail = [
+    { option_key: 'A', content: 'sí', feedback: null },
+    { option_key: 'B', content: 'no', feedback: null }
+  ];
+  const answer = normalizedAnswer || existingAnswer || 'sí';
+  if (!['sí', 'si', 'no'].includes(answer.toLowerCase())) {
+    throw new ValidationError('La respuesta correcta para sí/no debe ser "sí" o "no".');
+  }
+  response.persistedAnswer = answer.toLowerCase() === 'si' ? 'sí' : answer.toLowerCase();
+  return response;
+};
+
 
 // Conectar sistemas de monitoreo
 // // chatMetrics.on('metricsUpdate', (metrics) => {
@@ -385,6 +714,117 @@ if (process.env.DB_TYPE === 'sqlite') {
 
   db = pgp(cn);
 }
+
+const getBranchByKey = async (branchKey) => {
+  if (!branchKey) {
+    return null;
+  }
+  return db.oneOrNone(
+    'SELECT id, branch_key, name, domain, description, competency_map, created_at, updated_at FROM branches WHERE branch_key = $1',
+    [branchKey]
+  );
+};
+
+const formatExerciseRow = (row) => {
+  if (!row) {
+    return null;
+  }
+
+  let parsedOptions = null;
+  if (row.options) {
+    try {
+      parsedOptions = typeof row.options === 'string' ? JSON.parse(row.options) : row.options;
+    } catch (error) {
+      parsedOptions = row.options;
+    }
+  }
+
+  let parsedMetadata = {};
+  if (row.metadata) {
+    try {
+      parsedMetadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+    } catch (error) {
+      parsedMetadata = row.metadata;
+    }
+  }
+
+  let parsedOptionsDetail = [];
+  if (row.options_detail) {
+    try {
+      parsedOptionsDetail = typeof row.options_detail === 'string' ? JSON.parse(row.options_detail) : row.options_detail;
+    } catch (error) {
+      parsedOptionsDetail = [];
+    }
+  }
+
+  return {
+    id: row.id,
+    branch_id: row.branch_id,
+    branch_name: row.branch_name,
+    scope: row.scope,
+    level: row.level,
+    exercise_type: row.exercise_type,
+    question: row.question,
+    options: parsedOptions,
+    metadata: parsedMetadata,
+    competency: row.competency,
+    difficulty: row.difficulty,
+    objective: row.objective,
+    reference_url: row.reference_url,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    answer: row.correct_answer,
+    explanation: row.explanation,
+    validation_source: row.validation_source,
+    confidence_score: row.confidence_score,
+    options_detail: parsedOptionsDetail
+  };
+};
+
+const EXERCISE_SELECT_BASE = `
+  SELECT e.id,
+         e.branch_id,
+         e.branch_name,
+         e.scope,
+         e.level,
+         e.exercise_type,
+         e.question,
+         e.options,
+         e.metadata,
+         e.competency,
+         e.difficulty,
+         e.objective,
+         e.reference_url,
+         e.created_at,
+         e.updated_at,
+         a.correct_answer,
+         a.explanation,
+         a.validation_source,
+         a.confidence_score,
+         COALESCE(
+           json_agg(
+             CASE
+               WHEN o.id IS NOT NULL THEN json_build_object('option_key', o.option_key, 'content', o.content, 'feedback', o.feedback)
+               ELSE NULL
+             END
+           ) FILTER (WHERE o.id IS NOT NULL),
+           '[]'::json
+         ) AS options_detail
+  FROM branch_exercises e
+  LEFT JOIN branch_exercise_answers a ON a.exercise_id = e.id
+  LEFT JOIN branch_exercise_options o ON o.exercise_id = e.id
+`;
+
+const fetchExerciseRow = async (exerciseId, branchKey) => {
+  return db.oneOrNone(
+    `${EXERCISE_SELECT_BASE}
+     WHERE e.id = $1 AND e.branch_id = $2
+     GROUP BY e.id, a.correct_answer, a.explanation, a.validation_source, a.confidence_score`,
+    [exerciseId, branchKey]
+  );
+};
+
+
 
 // Inicializar base de datos
 const initializeDatabase = async () => {
@@ -1342,16 +1782,79 @@ app.get('/api/training/datasets', async (req, res) => {
   }
 });
 
-app.get('/api/training/branches', async (req, res) => {
+app.get('/api/training/branches', authenticateToken, async (req, res) => {
   try {
-    const branches = [
-      { id: 1, name: 'branch_01', status: 'completed', progress: 100 },
-      { id: 2, name: 'branch_02', status: 'active', progress: 67 },
-      { id: 3, name: 'branch_03', status: 'pending', progress: 0 }
-    ];
+    const branchRows = await db.any(
+      'SELECT id, branch_key, name, domain, description FROM branches ORDER BY branch_key'
+    );
+
+    const progressRows = await db.any(
+      `SELECT branch_id,
+              SUM(accuracy * attempts) AS weighted_accuracy,
+              SUM(attempts) AS total_attempts,
+              SUM(CASE WHEN completed THEN 1 ELSE 0 END) AS completed_levels,
+              COUNT(*) AS progress_records
+         FROM user_branch_progress
+        WHERE user_id = $1
+        GROUP BY branch_id`,
+      [req.user.id]
+    );
+
+    const progressByBranch = new Map();
+    progressRows.forEach((row) => {
+      progressByBranch.set(Number(row.branch_id), {
+        weightedAccuracy: Number(row.weighted_accuracy || 0),
+        totalAttempts: Number(row.total_attempts || 0),
+        completedLevels: Number(row.completed_levels || 0),
+        records: Number(row.progress_records || 0)
+      });
+    });
+
+    const totalRequiredLevels = SUPPORTED_EXERCISE_TYPES.length * 20; // 3 tipos * 20 niveles
+
+    const branches = branchRows.map((row) => {
+      const stats = progressByBranch.get(Number(row.id)) || {
+        weightedAccuracy: 0,
+        totalAttempts: 0,
+        completedLevels: 0,
+        records: 0
+      };
+
+      const averageAccuracy = stats.totalAttempts > 0
+        ? Math.round((stats.weightedAccuracy / stats.totalAttempts) * 100) / 100
+        : 0;
+      const completionRatio = Math.min(
+        1,
+        totalRequiredLevels > 0 ? stats.completedLevels / totalRequiredLevels : 0
+      );
+      const progress = Math.round(completionRatio * 100);
+      const status = stats.completedLevels >= totalRequiredLevels
+        ? 'completed'
+        : stats.records > 0
+          ? 'active'
+          : 'pending';
+
+      return {
+        id: row.id,
+        branch_key: row.branch_key,
+        name: row.name,
+        domain: row.domain,
+        description: row.description,
+        status,
+        progress,
+        metrics: {
+          average_accuracy: averageAccuracy,
+          completed_levels: stats.completedLevels,
+          total_levels: totalRequiredLevels,
+          total_attempts: stats.totalAttempts
+        }
+      };
+    });
+
     res.json({ branches, total: branches.length });
   } catch (error) {
-    res.status(500).json({ error: 'Error obteniendo ramas' });
+    console.error('Error obteniendo ramas de entrenamiento:', error);
+    res.status(500).json({ error: 'Error obteniendo ramas de entrenamiento' });
   }
 });
 
@@ -1765,6 +2268,1042 @@ app.post('/api/admin/chat/backup', async (req, res) => {
     res.json({ message: 'Backup iniciado exitosamente', backup });
   } catch (error) {
     res.status(500).json({ error: 'Error iniciando backup' });
+  }
+});
+
+// --- Gestión de ramas y ejercicios ---
+
+app.get('/api/branches', authenticateToken, async (req, res) => {
+  try {
+    const includeProgress = String(req.query.includeProgress || '').toLowerCase() === 'true';
+    const branchRows = await db.any(
+      'SELECT id, branch_key, name, domain, description, competency_map, created_at, updated_at FROM branches ORDER BY branch_key'
+    );
+
+    const branches = branchRows.map((row) => ({
+      id: row.id,
+      branch_key: row.branch_key,
+      name: row.name,
+      domain: row.domain,
+      description: row.description,
+      competency_map: coerceDatasetSnapshot(row.competency_map),
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }));
+
+    if (includeProgress && req.user && req.user.id) {
+      const progressRows = await db.any(
+        'SELECT id, branch_id, exercise_type, level, accuracy, attempts, completed, tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at, created_at, updated_at FROM user_branch_progress WHERE user_id = $1',
+        [req.user.id]
+      );
+      const progressByBranch = new Map();
+      for (const entry of progressRows) {
+        if (!progressByBranch.has(entry.branch_id)) {
+          progressByBranch.set(entry.branch_id, []);
+        }
+        progressByBranch.get(entry.branch_id).push({
+          id: entry.id,
+          exercise_type: entry.exercise_type,
+          level: entry.level,
+          accuracy: entry.accuracy !== null ? Number(entry.accuracy) : null,
+          attempts: entry.attempts,
+          completed: entry.completed,
+          tokens_awarded: entry.tokens_awarded,
+          verification_status: entry.verification_status,
+          verification_source: entry.verification_source,
+          dataset_snapshot: coerceDatasetSnapshot(entry.dataset_snapshot),
+          last_reviewed_at: entry.last_reviewed_at,
+          created_at: entry.created_at,
+          updated_at: entry.updated_at
+        });
+      }
+
+      branches.forEach((branch) => {
+        branch.progress = progressByBranch.get(branch.id) || [];
+      });
+    }
+
+    res.json({ branches });
+  } catch (error) {
+    console.error('Error listing branches:', error);
+    res.status(500).json({ error: 'Error obteniendo ramas', details: error.message });
+  }
+});
+
+app.get('/api/branches/:branchKey', authenticateToken, async (req, res) => {
+  try {
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const includeProgress = String(req.query.includeProgress || '').toLowerCase() === 'true';
+    const response = {
+      id: branch.id,
+      branch_key: branch.branch_key,
+      name: branch.name,
+      domain: branch.domain,
+      description: branch.description,
+      competency_map: coerceDatasetSnapshot(branch.competency_map),
+      created_at: branch.created_at,
+      updated_at: branch.updated_at
+    };
+
+    if (includeProgress && req.user && req.user.id) {
+      const progressRows = await db.any(
+        'SELECT id, branch_id, exercise_type, level, accuracy, attempts, completed, tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at, created_at, updated_at FROM user_branch_progress WHERE user_id = $1 AND branch_id = $2 ORDER BY exercise_type, level',
+        [req.user.id, branch.id]
+      );
+      response.progress = progressRows.map((entry) => ({
+        id: entry.id,
+        exercise_type: entry.exercise_type,
+        level: entry.level,
+        accuracy: entry.accuracy !== null ? Number(entry.accuracy) : null,
+        attempts: entry.attempts,
+        completed: entry.completed,
+        tokens_awarded: entry.tokens_awarded,
+        verification_status: entry.verification_status,
+        verification_source: entry.verification_source,
+        dataset_snapshot: coerceDatasetSnapshot(entry.dataset_snapshot),
+        last_reviewed_at: entry.last_reviewed_at,
+        created_at: entry.created_at,
+        updated_at: entry.updated_at
+      }));
+    }
+
+    res.json({ branch: response });
+  } catch (error) {
+    console.error('Error fetching branch:', error);
+    res.status(500).json({ error: 'Error obteniendo la rama', details: error.message });
+  }
+});
+
+app.get('/api/branches/:branchKey/exercises', authenticateToken, async (req, res) => {
+  try {
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const filters = ['e.branch_id = $1'];
+    const values = [branchKey];
+    let placeholderIndex = 2;
+
+    const scope = typeof req.query.scope === 'string' ? req.query.scope.trim().toLowerCase() : '';
+    if (scope) {
+      filters.push(`LOWER(e.scope) = $${placeholderIndex}`);
+      values.push(scope);
+      placeholderIndex += 1;
+    }
+
+    const exerciseTypeQuery = normalizeExerciseType(req.query.exerciseType || req.query.exercise_type);
+    if (exerciseTypeQuery) {
+      if (!isValidExerciseType(exerciseTypeQuery)) {
+        return res.status(400).json({ error: 'Tipo de ejercicio inválido' });
+      }
+      filters.push(`e.exercise_type = $${placeholderIndex}`);
+      values.push(exerciseTypeQuery);
+      placeholderIndex += 1;
+    }
+
+    if (req.query.level !== undefined) {
+      const level = parseInt(req.query.level, 10);
+      if (Number.isNaN(level) || level < 1 || level > 20) {
+        return res.status(400).json({ error: 'El nivel debe estar entre 1 y 20' });
+      }
+      filters.push(`e.level = $${placeholderIndex}`);
+      values.push(level);
+      placeholderIndex += 1;
+    }
+
+    const limit = Math.min(parsePositiveInt(req.query.limit, 50), 200);
+    const offset = parsePositiveInt(req.query.offset, 0);
+    const limitPlaceholder = placeholderIndex;
+    const offsetPlaceholder = placeholderIndex + 1;
+    values.push(limit, offset);
+
+    const query = `${EXERCISE_SELECT_BASE}
+      WHERE ${filters.join(' AND ')}
+      GROUP BY e.id, a.correct_answer, a.explanation, a.validation_source, a.confidence_score
+      ORDER BY e.level, e.exercise_type, e.id
+      LIMIT $${limitPlaceholder} OFFSET $${offsetPlaceholder}`;
+
+    const rows = await db.any(query, values);
+    const isAdminRequest = req.user && ADMIN_ROLES.has(req.user.role);
+    const exercises = rows.map((row) => {
+      const exercise = formatExerciseRow(row);
+      if (!isAdminRequest) {
+        delete exercise.answer;
+        delete exercise.explanation;
+        delete exercise.validation_source;
+        delete exercise.confidence_score;
+      }
+      return exercise;
+    });
+
+    res.json({
+      branch: { id: branch.id, branch_key: branch.branch_key, name: branch.name },
+      exercises
+    });
+  } catch (error) {
+    console.error('Error listing branch exercises:', error);
+    res.status(500).json({ error: 'Error obteniendo ejercicios de la rama', details: error.message });
+  }
+});
+
+app.post('/api/branches/:branchKey/exercises/:exerciseId/attempts', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+
+  try {
+    const branchKey = req.params.branchKey;
+    const exerciseId = parseInt(req.params.exerciseId, 10);
+
+    if (Number.isNaN(exerciseId) || exerciseId <= 0) {
+      return res.status(400).json({ error: 'Identificador de ejercicio inválido' });
+    }
+
+    const branch = await getBranchByKey(branchKey);
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const exerciseRow = await fetchExerciseRow(exerciseId, branch.branch_key);
+    if (!exerciseRow) {
+      return res.status(404).json({ error: 'Ejercicio no encontrado' });
+    }
+
+    const evaluation = evaluateSubmittedAnswer(exerciseRow, req.body || {});
+    const verificationSource = 'local-evaluator';
+
+    const result = await db.tx(async (t) => {
+      const attemptRow = await t.one(
+        `INSERT INTO user_branch_attempts (
+            user_id, branch_id, exercise_id, exercise_type, level,
+            submitted_answer, is_correct, accuracy, score, validation_source
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id, created_at`,
+        [
+          req.user.id,
+          branch.id,
+          exerciseRow.id,
+          exerciseRow.exercise_type,
+          exerciseRow.level,
+          evaluation.normalizedDisplayAnswer,
+          evaluation.isCorrect,
+          evaluation.accuracy,
+          evaluation.accuracy,
+          verificationSource
+        ]
+      );
+
+      const existingProgress = await t.oneOrNone(
+        `SELECT id, accuracy, attempts, completed, tokens_awarded
+           FROM user_branch_progress
+          WHERE user_id = $1 AND branch_id = $2 AND exercise_type = $3 AND level = $4`,
+        [req.user.id, branch.id, exerciseRow.exercise_type, exerciseRow.level]
+      );
+
+      const previousAttempts = existingProgress ? Number(existingProgress.attempts || 0) : 0;
+      const previousAccuracy = existingProgress ? Number(existingProgress.accuracy || 0) : 0;
+      const weightedAccuracy = previousAccuracy * previousAttempts + evaluation.accuracy;
+      const newAttempts = previousAttempts + 1;
+      const averageAccuracy = Math.round((weightedAccuracy / newAttempts) * 100) / 100;
+      const reachedThreshold = evaluation.accuracy >= 95;
+      const alreadyCompleted = existingProgress ? existingProgress.completed : false;
+      const completed = alreadyCompleted || reachedThreshold;
+      const tokensAlreadyAwarded = existingProgress ? Number(existingProgress.tokens_awarded || 0) : 0;
+      const tokensToGrant = reachedThreshold && !alreadyCompleted ? TOKENS_PER_VALIDATED_EXERCISE : 0;
+      const totalTokensAwarded = tokensAlreadyAwarded + tokensToGrant;
+      const verificationStatus = completed ? 'verified' : 'in_review';
+
+      const datasetSnapshot = {
+        attempt_id: attemptRow.id,
+        accuracy: evaluation.accuracy,
+        option_key: evaluation.resolvedOptionKey,
+        normalized_answer: evaluation.normalizedDisplayAnswer,
+        evaluated_at: new Date().toISOString(),
+        evaluator: verificationSource
+      };
+
+      if (existingProgress) {
+        await t.none(
+          `UPDATE user_branch_progress
+              SET accuracy = $1,
+                  attempts = $2,
+                  completed = $3,
+                  tokens_awarded = $4,
+                  verification_status = $5,
+                  verification_source = $6,
+                  dataset_snapshot = $7::jsonb,
+                  last_reviewed_at = CASE WHEN $3 THEN CURRENT_TIMESTAMP ELSE last_reviewed_at END,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = $8`,
+          [
+            averageAccuracy,
+            newAttempts,
+            completed,
+            totalTokensAwarded,
+            verificationStatus,
+            verificationSource,
+            JSON.stringify(datasetSnapshot),
+            existingProgress.id
+          ]
+        );
+      } else {
+        await t.none(
+          `INSERT INTO user_branch_progress (
+              user_id, branch_id, exercise_type, level, accuracy, attempts,
+              completed, tokens_awarded, verification_status, verification_source,
+              dataset_snapshot, last_reviewed_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)`,
+          [
+            req.user.id,
+            branch.id,
+            exerciseRow.exercise_type,
+            exerciseRow.level,
+            averageAccuracy,
+            newAttempts,
+            completed,
+            totalTokensAwarded,
+            verificationStatus,
+            verificationSource,
+            JSON.stringify(datasetSnapshot),
+            completed ? new Date() : null
+          ]
+        );
+      }
+
+      if (tokensToGrant > 0) {
+        const tokenUpdateResult = await t.result(
+          `UPDATE user_tokens
+              SET tokens = tokens + $1,
+                  earned_tokens = earned_tokens + $1,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $2`,
+          [tokensToGrant, req.user.id]
+        );
+
+        if (tokenUpdateResult.rowCount === 0) {
+          await t.none(
+            `INSERT INTO user_tokens (user_id, tokens, earned_tokens, spent_tokens)
+             VALUES ($1, $2, $2, 0)
+             ON CONFLICT (user_id) DO UPDATE
+                SET tokens = user_tokens.tokens + $2,
+                    earned_tokens = user_tokens.earned_tokens + $2,
+                    updated_at = CURRENT_TIMESTAMP`,
+            [req.user.id, tokensToGrant]
+          );
+        }
+      }
+
+      return {
+        attempt: { id: attemptRow.id, created_at: attemptRow.created_at },
+        progress: {
+          accuracy: averageAccuracy,
+          attempts: newAttempts,
+          completed,
+          tokens_awarded: totalTokensAwarded,
+          verification_status: verificationStatus
+        },
+        tokensGranted: tokensToGrant
+      };
+    });
+
+    res.json({
+      branch: { id: branch.id, branch_key: branch.branch_key, name: branch.name },
+      exercise: {
+        id: exerciseRow.id,
+        level: exerciseRow.level,
+        exercise_type: exerciseRow.exercise_type,
+        scope: exerciseRow.scope
+      },
+      evaluation: {
+        is_correct: evaluation.isCorrect,
+        accuracy: evaluation.accuracy,
+        normalized_answer: evaluation.normalizedDisplayAnswer,
+        option_key: evaluation.resolvedOptionKey,
+        correct_answer: exerciseRow.answer,
+        explanation: exerciseRow.explanation,
+        validation_source: exerciseRow.validation_source,
+        confidence_score: exerciseRow.confidence_score
+      },
+      attempt: result.attempt,
+      progress: result.progress,
+      tokens: { granted: result.tokensGranted, total_awarded: result.progress.tokens_awarded }
+    });
+  } catch (error) {
+    console.error('Error registrando intento de ejercicio:', error);
+    if (error instanceof ValidationError) {
+      res.status(error.status || 400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: 'Error registrando intento', details: error.message });
+  }
+});
+
+app.post('/api/branches/:branchKey/exercises', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
+  try {
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const level = parseInt(req.body.level, 10);
+    if (Number.isNaN(level) || level < 1 || level > 20) {
+      throw new ValidationError('El nivel debe estar entre 1 y 20.');
+    }
+
+    const scope = typeof req.body.scope === 'string' ? req.body.scope.trim().toLowerCase() : '';
+    if (!scope) {
+      throw new ValidationError('El campo scope es obligatorio.');
+    }
+
+    const question = typeof req.body.question === 'string' ? req.body.question.trim() : '';
+    if (!question) {
+      throw new ValidationError('La pregunta es obligatoria.');
+    }
+
+    const exerciseType = normalizeExerciseType(req.body.exercise_type || req.body.exerciseType);
+    if (!isValidExerciseType(exerciseType)) {
+      throw new ValidationError('Tipo de ejercicio inválido.');
+    }
+
+    const explanation = typeof req.body.explanation === 'string' && req.body.explanation.trim()
+      ? req.body.explanation.trim()
+      : null;
+    const validationSource = typeof req.body.validation_source === 'string' && req.body.validation_source.trim()
+      ? req.body.validation_source.trim()
+      : null;
+
+    const correctAnswerRaw = req.body.correct_answer ?? req.body.correctAnswer;
+    if (!correctAnswerRaw || (typeof correctAnswerRaw === 'string' && !correctAnswerRaw.trim())) {
+      throw new ValidationError('La respuesta correcta es obligatoria.');
+    }
+
+    const confidenceScore = req.body.confidence_score !== undefined && req.body.confidence_score !== null
+      ? Number(req.body.confidence_score)
+      : null;
+    if (confidenceScore !== null && (Number.isNaN(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) {
+      throw new ValidationError('El confidence_score debe estar entre 0 y 100.');
+    }
+
+    const optionsInput = Array.isArray(req.body.options) ? req.body.options : [];
+    const metadataPayload = req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
+    const competency = typeof req.body.competency === 'string' && req.body.competency.trim()
+      ? req.body.competency.trim()
+      : branch.domain;
+    const difficulty = typeof req.body.difficulty === 'string' && req.body.difficulty.trim()
+      ? req.body.difficulty.trim()
+      : 'standard';
+    const objective = typeof req.body.objective === 'string' && req.body.objective.trim()
+      ? req.body.objective.trim()
+      : null;
+    const referenceUrl = typeof req.body.reference_url === 'string' && req.body.reference_url.trim()
+      ? req.body.reference_url.trim()
+      : null;
+
+    const { legacyOptions, optionsDetail, persistedAnswer } = resolveOptionsPayload({
+      exerciseType,
+      correctAnswer: correctAnswerRaw,
+      optionsInput
+    });
+
+    const metadata = {
+      branch: branch.branch_key,
+      ...metadataPayload,
+      scope,
+      created_by: req.user.username,
+      verification: {
+        required_accuracy: 95,
+        last_updated: new Date().toISOString()
+      }
+    };
+
+    const createdId = await db.tx(async (t) => {
+      const exerciseRow = await t.one(
+        `INSERT INTO branch_exercises (
+            branch_id, branch_name, scope, level, exercise_type, question, options, metadata,
+            competency, difficulty, objective, reference_url
+         ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb,
+            $9, $10, $11, $12
+         ) RETURNING id`,
+        [
+          branch.branch_key,
+          branch.name,
+          scope,
+          level,
+          exerciseType,
+          question,
+          legacyOptions ? JSON.stringify(legacyOptions) : null,
+          JSON.stringify(metadata),
+          competency,
+          difficulty,
+          objective,
+          referenceUrl
+        ]
+      );
+
+      await t.none(
+        'INSERT INTO branch_exercise_answers (exercise_id, correct_answer, explanation, validation_source, confidence_score) VALUES ($1, $2, $3, $4, $5)',
+        [exerciseRow.id, persistedAnswer, explanation, validationSource, confidenceScore]
+      );
+
+      if (optionsDetail.length > 0) {
+        for (const option of optionsDetail) {
+          await t.none(
+            'INSERT INTO branch_exercise_options (exercise_id, option_key, content, feedback) VALUES ($1, $2, $3, $4)',
+            [exerciseRow.id, option.option_key, option.content, option.feedback]
+          );
+        }
+      }
+
+      return exerciseRow.id;
+    });
+
+    const createdRow = await fetchExerciseRow(createdId, branch.branch_key);
+    res.status(201).json({ exercise: formatExerciseRow(createdRow) });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error creating branch exercise:', error);
+    res.status(500).json({ error: 'Error creando ejercicio', details: error.message });
+  }
+});
+
+app.put('/api/branches/:branchKey/exercises/:exerciseId', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
+  try {
+    const branchKey = req.params.branchKey;
+    const exerciseId = parseInt(req.params.exerciseId, 10);
+
+    if (Number.isNaN(exerciseId) || exerciseId <= 0) {
+      return res.status(400).json({ error: 'Identificador de ejercicio inválido' });
+    }
+
+    const branch = await getBranchByKey(branchKey);
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const existingRow = await fetchExerciseRow(exerciseId, branch.branch_key);
+    if (!existingRow) {
+      return res.status(404).json({ error: 'Ejercicio no encontrado' });
+    }
+
+    const level = req.body.level !== undefined ? parseInt(req.body.level, 10) : existingRow.level;
+    if (Number.isNaN(level) || level < 1 || level > 20) {
+      throw new ValidationError('El nivel debe estar entre 1 y 20.');
+    }
+
+    const scope = typeof req.body.scope === 'string' && req.body.scope.trim()
+      ? req.body.scope.trim().toLowerCase()
+      : existingRow.scope;
+
+    const question = typeof req.body.question === 'string' && req.body.question.trim()
+      ? req.body.question.trim()
+      : existingRow.question;
+
+    const exerciseType = req.body.exercise_type || req.body.exerciseType
+      ? normalizeExerciseType(req.body.exercise_type || req.body.exerciseType)
+      : existingRow.exercise_type;
+    if (!isValidExerciseType(exerciseType)) {
+      throw new ValidationError('Tipo de ejercicio inválido.');
+    }
+
+    const explanation = req.body.explanation !== undefined
+      ? (typeof req.body.explanation === 'string' && req.body.explanation.trim() ? req.body.explanation.trim() : null)
+      : existingRow.explanation;
+
+    const validationSource = req.body.validation_source !== undefined
+      ? (typeof req.body.validation_source === 'string' && req.body.validation_source.trim() ? req.body.validation_source.trim() : null)
+      : existingRow.validation_source;
+
+    const confidenceScore = req.body.confidence_score !== undefined && req.body.confidence_score !== null
+      ? Number(req.body.confidence_score)
+      : existingRow.confidence_score;
+    if (confidenceScore !== null && confidenceScore !== undefined && (Number.isNaN(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) {
+      throw new ValidationError('El confidence_score debe estar entre 0 y 100.');
+    }
+
+    const competency = req.body.competency !== undefined
+      ? (typeof req.body.competency === 'string' && req.body.competency.trim() ? req.body.competency.trim() : branch.domain)
+      : existingRow.competency;
+
+    const difficulty = req.body.difficulty !== undefined
+      ? (typeof req.body.difficulty === 'string' && req.body.difficulty.trim() ? req.body.difficulty.trim() : 'standard')
+      : existingRow.difficulty;
+
+    const objective = req.body.objective !== undefined
+      ? (typeof req.body.objective === 'string' && req.body.objective.trim() ? req.body.objective.trim() : null)
+      : existingRow.objective;
+
+    const referenceUrl = req.body.reference_url !== undefined
+      ? (typeof req.body.reference_url === 'string' && req.body.reference_url.trim() ? req.body.reference_url.trim() : null)
+      : existingRow.reference_url;
+
+    const metadataPayload = req.body.metadata && typeof req.body.metadata === 'object'
+      ? req.body.metadata
+      : existingRow.metadata;
+
+    const correctAnswerRaw = req.body.correct_answer !== undefined ? req.body.correct_answer : existingRow.answer;
+    if (!correctAnswerRaw || (typeof correctAnswerRaw === 'string' && !correctAnswerRaw.trim())) {
+      throw new ValidationError('La respuesta correcta es obligatoria.');
+    }
+
+    const { legacyOptions, optionsDetail, persistedAnswer } = resolveOptionsPayload({
+      exerciseType,
+      correctAnswer: correctAnswerRaw,
+      optionsInput: Array.isArray(req.body.options) ? req.body.options : [],
+      existingOptionsDetail: existingRow.options_detail,
+      existingLegacyOptions: existingRow.options,
+      existingAnswer: existingRow.answer
+    });
+
+    const metadata = {
+      ...(existingRow.metadata || {}),
+      ...(metadataPayload || {}),
+      scope,
+      updated_by: req.user.username,
+      updated_at: new Date().toISOString()
+    };
+
+    await db.tx(async (t) => {
+      await t.none(
+        `UPDATE branch_exercises
+         SET branch_name = $1,
+             scope = $2,
+             level = $3,
+             exercise_type = $4,
+             question = $5,
+             options = $6::jsonb,
+             metadata = $7::jsonb,
+             competency = $8,
+             difficulty = $9,
+             objective = $10,
+             reference_url = $11
+         WHERE id = $12 AND branch_id = $13`,
+        [
+          branch.name,
+          scope,
+          level,
+          exerciseType,
+          question,
+          legacyOptions ? JSON.stringify(legacyOptions) : null,
+          JSON.stringify(metadata),
+          competency,
+          difficulty,
+          objective,
+          referenceUrl,
+          exerciseId,
+          branch.branch_key
+        ]
+      );
+
+      await t.none(
+        `UPDATE branch_exercise_answers
+         SET correct_answer = $1,
+             explanation = $2,
+             validation_source = $3,
+             confidence_score = $4
+         WHERE exercise_id = $5`,
+        [persistedAnswer, explanation, validationSource, confidenceScore, exerciseId]
+      );
+
+      await t.none('DELETE FROM branch_exercise_options WHERE exercise_id = $1', [exerciseId]);
+
+      if (optionsDetail.length > 0) {
+        for (const option of optionsDetail) {
+          await t.none(
+            'INSERT INTO branch_exercise_options (exercise_id, option_key, content, feedback) VALUES ($1, $2, $3, $4)',
+            [exerciseId, option.option_key, option.content, option.feedback]
+          );
+        }
+      }
+    });
+
+    const updatedRow = await fetchExerciseRow(exerciseId, branch.branch_key);
+    res.json({ exercise: formatExerciseRow(updatedRow) });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error updating branch exercise:', error);
+    res.status(500).json({ error: 'Error actualizando ejercicio', details: error.message });
+  }
+});
+
+app.delete('/api/branches/:branchKey/exercises/:exerciseId', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+  if (!requireAdminRole(req, res)) {
+    return;
+  }
+
+  try {
+    const branchKey = req.params.branchKey;
+    const exerciseId = parseInt(req.params.exerciseId, 10);
+
+    if (Number.isNaN(exerciseId) || exerciseId <= 0) {
+      return res.status(400).json({ error: 'Identificador de ejercicio inválido' });
+    }
+
+    const branch = await getBranchByKey(branchKey);
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const result = await db.result(
+      'DELETE FROM branch_exercises WHERE id = $1 AND branch_id = $2',
+      [exerciseId, branch.branch_key]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Ejercicio no encontrado' });
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting branch exercise:', error);
+    res.status(500).json({ error: 'Error eliminando ejercicio', details: error.message });
+  }
+});
+
+app.get('/api/branches/:branchKey/progress', authenticateToken, async (req, res) => {
+  try {
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const progressRows = await db.any(
+      'SELECT id, exercise_type, level, accuracy, attempts, completed, tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at, created_at, updated_at FROM user_branch_progress WHERE user_id = $1 AND branch_id = $2 ORDER BY exercise_type, level',
+      [req.user.id, branch.id]
+    );
+
+    const progress = progressRows.map((entry) => ({
+      id: entry.id,
+      exercise_type: entry.exercise_type,
+      level: entry.level,
+      accuracy: entry.accuracy !== null ? Number(entry.accuracy) : null,
+      attempts: entry.attempts,
+      completed: entry.completed,
+      tokens_awarded: entry.tokens_awarded,
+      verification_status: entry.verification_status,
+      verification_source: entry.verification_source,
+      dataset_snapshot: coerceDatasetSnapshot(entry.dataset_snapshot),
+      last_reviewed_at: entry.last_reviewed_at,
+      created_at: entry.created_at,
+      updated_at: entry.updated_at
+    }));
+
+    res.json({ branch: { id: branch.id, branch_key: branch.branch_key, name: branch.name }, progress });
+  } catch (error) {
+    console.error('Error listing branch progress:', error);
+    res.status(500).json({ error: 'Error obteniendo progreso de la rama', details: error.message });
+  }
+});
+
+app.post('/api/branches/:branchKey/progress', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+
+  try {
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const exerciseType = normalizeExerciseType(req.body.exercise_type || req.body.exerciseType);
+    if (!isValidExerciseType(exerciseType)) {
+      throw new ValidationError('Tipo de ejercicio inválido.');
+    }
+
+    const level = parseInt(req.body.level, 10);
+    if (Number.isNaN(level) || level < 1 || level > 20) {
+      throw new ValidationError('El nivel debe estar entre 1 y 20.');
+    }
+
+    const accuracy = req.body.accuracy !== undefined && req.body.accuracy !== null ? Number(req.body.accuracy) : 0;
+    if (Number.isNaN(accuracy) || accuracy < 0 || accuracy > 100) {
+      throw new ValidationError('La precisión debe estar entre 0 y 100.');
+    }
+
+    const attempts = req.body.attempts !== undefined && req.body.attempts !== null ? parsePositiveInt(req.body.attempts, 0) : 0;
+    const completed = Boolean(req.body.completed);
+    const tokensAwarded = req.body.tokens_awarded !== undefined && req.body.tokens_awarded !== null
+      ? parsePositiveInt(req.body.tokens_awarded, 0)
+      : 0;
+
+    const allowedStatuses = new Set(['pending', 'in_review', 'verified', 'rejected']);
+    const verificationStatus = typeof req.body.verification_status === 'string'
+      ? req.body.verification_status.trim().toLowerCase()
+      : 'pending';
+    if (!allowedStatuses.has(verificationStatus)) {
+      throw new ValidationError('Estado de verificación inválido.');
+    }
+
+    const verificationSource = typeof req.body.verification_source === 'string' && req.body.verification_source.trim()
+      ? req.body.verification_source.trim()
+      : null;
+
+    const datasetSnapshot = coerceDatasetSnapshot(req.body.dataset_snapshot);
+    const lastReviewedAt = req.body.last_reviewed_at ? new Date(req.body.last_reviewed_at) : null;
+    if (lastReviewedAt && Number.isNaN(lastReviewedAt.valueOf())) {
+      throw new ValidationError('El campo last_reviewed_at no es una fecha válida.');
+    }
+
+    const inserted = await db.one(
+      `INSERT INTO user_branch_progress (
+          user_id, branch_id, exercise_type, level, accuracy, attempts, completed,
+          tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at
+       ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11::jsonb, $12
+       ) RETURNING id`,
+      [
+        req.user.id,
+        branch.id,
+        exerciseType,
+        level,
+        accuracy,
+        attempts,
+        completed,
+        tokensAwarded,
+        verificationStatus,
+        verificationSource,
+        JSON.stringify(datasetSnapshot),
+        lastReviewedAt ? lastReviewedAt.toISOString() : null
+      ]
+    );
+
+    const created = await db.one(
+      'SELECT id, exercise_type, level, accuracy, attempts, completed, tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at, created_at, updated_at FROM user_branch_progress WHERE id = $1',
+      [inserted.id]
+    );
+
+    res.status(201).json({
+      progress: {
+        id: created.id,
+        exercise_type: created.exercise_type,
+        level: created.level,
+        accuracy: created.accuracy !== null ? Number(created.accuracy) : null,
+        attempts: created.attempts,
+        completed: created.completed,
+        tokens_awarded: created.tokens_awarded,
+        verification_status: created.verification_status,
+        verification_source: created.verification_source,
+        dataset_snapshot: coerceDatasetSnapshot(created.dataset_snapshot),
+        last_reviewed_at: created.last_reviewed_at,
+        created_at: created.created_at,
+        updated_at: created.updated_at
+      }
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'El progreso para este nivel y tipo de ejercicio ya existe.' });
+    }
+    if (error instanceof ValidationError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error creating branch progress:', error);
+    res.status(500).json({ error: 'Error creando progreso', details: error.message });
+  }
+});
+
+app.put('/api/branches/:branchKey/progress/:progressId', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+
+  try {
+    const progressId = parseInt(req.params.progressId, 10);
+    if (Number.isNaN(progressId) || progressId <= 0) {
+      return res.status(400).json({ error: 'Identificador de progreso inválido' });
+    }
+
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const existing = await db.oneOrNone(
+      `SELECT id, exercise_type, level, accuracy, attempts, completed, tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at
+       FROM user_branch_progress
+       WHERE id = $1 AND user_id = $2 AND branch_id = $3`,
+      [progressId, req.user.id, branch.id]
+    );
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Registro de progreso no encontrado' });
+    }
+
+    const updatedType = req.body.exercise_type || req.body.exerciseType
+      ? normalizeExerciseType(req.body.exercise_type || req.body.exerciseType)
+      : existing.exercise_type;
+    if (!isValidExerciseType(updatedType)) {
+      throw new ValidationError('Tipo de ejercicio inválido.');
+    }
+
+    const updatedLevel = req.body.level !== undefined ? parseInt(req.body.level, 10) : existing.level;
+    if (Number.isNaN(updatedLevel) || updatedLevel < 1 || updatedLevel > 20) {
+      throw new ValidationError('El nivel debe estar entre 1 y 20.');
+    }
+
+    const updatedAccuracy = req.body.accuracy !== undefined && req.body.accuracy !== null ? Number(req.body.accuracy) : existing.accuracy;
+    if (updatedAccuracy !== null && (Number.isNaN(updatedAccuracy) || updatedAccuracy < 0 || updatedAccuracy > 100)) {
+      throw new ValidationError('La precisión debe estar entre 0 y 100.');
+    }
+
+    const updatedAttempts = req.body.attempts !== undefined && req.body.attempts !== null
+      ? parsePositiveInt(req.body.attempts, existing.attempts)
+      : existing.attempts;
+    const updatedCompleted = req.body.completed !== undefined ? Boolean(req.body.completed) : existing.completed;
+    const updatedTokens = req.body.tokens_awarded !== undefined && req.body.tokens_awarded !== null
+      ? parsePositiveInt(req.body.tokens_awarded, existing.tokens_awarded)
+      : existing.tokens_awarded;
+
+    const allowedStatuses = new Set(['pending', 'in_review', 'verified', 'rejected']);
+    const updatedStatus = req.body.verification_status !== undefined
+      ? (typeof req.body.verification_status === 'string' ? req.body.verification_status.trim().toLowerCase() : existing.verification_status)
+      : existing.verification_status;
+    if (!allowedStatuses.has(updatedStatus)) {
+      throw new ValidationError('Estado de verificación inválido.');
+    }
+
+    const updatedSource = req.body.verification_source !== undefined
+      ? (typeof req.body.verification_source === 'string' && req.body.verification_source.trim() ? req.body.verification_source.trim() : null)
+      : existing.verification_source;
+
+    const updatedSnapshot = req.body.dataset_snapshot !== undefined
+      ? coerceDatasetSnapshot(req.body.dataset_snapshot)
+      : coerceDatasetSnapshot(existing.dataset_snapshot);
+
+    const updatedLastReviewed = req.body.last_reviewed_at !== undefined
+      ? (req.body.last_reviewed_at ? new Date(req.body.last_reviewed_at) : null)
+      : (existing.last_reviewed_at ? new Date(existing.last_reviewed_at) : null);
+    if (updatedLastReviewed && Number.isNaN(updatedLastReviewed.valueOf())) {
+      throw new ValidationError('El campo last_reviewed_at no es una fecha válida.');
+    }
+
+    await db.none(
+      `UPDATE user_branch_progress
+       SET exercise_type = $1,
+           level = $2,
+           accuracy = $3,
+           attempts = $4,
+           completed = $5,
+           tokens_awarded = $6,
+           verification_status = $7,
+           verification_source = $8,
+           dataset_snapshot = $9::jsonb,
+           last_reviewed_at = $10
+       WHERE id = $11`,
+      [
+        updatedType,
+        updatedLevel,
+        updatedAccuracy,
+        updatedAttempts,
+        updatedCompleted,
+        updatedTokens,
+        updatedStatus,
+        updatedSource,
+        JSON.stringify(updatedSnapshot),
+        updatedLastReviewed ? updatedLastReviewed.toISOString() : null,
+        progressId
+      ]
+    );
+
+    const updated = await db.one(
+      'SELECT id, exercise_type, level, accuracy, attempts, completed, tokens_awarded, verification_status, verification_source, dataset_snapshot, last_reviewed_at, created_at, updated_at FROM user_branch_progress WHERE id = $1',
+      [progressId]
+    );
+
+    res.json({
+      progress: {
+        id: updated.id,
+        exercise_type: updated.exercise_type,
+        level: updated.level,
+        accuracy: updated.accuracy !== null ? Number(updated.accuracy) : null,
+        attempts: updated.attempts,
+        completed: updated.completed,
+        tokens_awarded: updated.tokens_awarded,
+        verification_status: updated.verification_status,
+        verification_source: updated.verification_source,
+        dataset_snapshot: coerceDatasetSnapshot(updated.dataset_snapshot),
+        last_reviewed_at: updated.last_reviewed_at,
+        created_at: updated.created_at,
+        updated_at: updated.updated_at
+      }
+    });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error updating branch progress:', error);
+    res.status(500).json({ error: 'Error actualizando progreso', details: error.message });
+  }
+});
+
+app.delete('/api/branches/:branchKey/progress/:progressId', authenticateToken, async (req, res) => {
+  if (!ensurePostgresOperations(res)) {
+    return;
+  }
+
+  try {
+    const progressId = parseInt(req.params.progressId, 10);
+    if (Number.isNaN(progressId) || progressId <= 0) {
+      return res.status(400).json({ error: 'Identificador de progreso inválido' });
+    }
+
+    const branchKey = req.params.branchKey;
+    const branch = await getBranchByKey(branchKey);
+    if (!branch) {
+      return res.status(404).json({ error: 'Rama no encontrada' });
+    }
+
+    const result = await db.result(
+      'DELETE FROM user_branch_progress WHERE id = $1 AND user_id = $2 AND branch_id = $3',
+      [progressId, req.user.id, branch.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Registro de progreso no encontrado' });
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting branch progress:', error);
+    res.status(500).json({ error: 'Error eliminando progreso', details: error.message });
   }
 });
 

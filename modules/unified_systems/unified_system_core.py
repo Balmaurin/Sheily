@@ -428,7 +428,7 @@ class UnifiedSystemCore:
                     json={"prompt": full_prompt, "max_tokens": 500, "temperature": 0.7},
                     headers={
                         "Content-Type": "application/json",
-                        "Origin": "http://localhost:8080",
+                        "Origin": "http://localhost:8005",
                     },
                 )
 

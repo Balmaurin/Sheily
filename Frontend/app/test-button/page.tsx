@@ -34,7 +34,7 @@ export default function TestButtonPage() {
             full_name: formData.fullName || formData.email.split('@')[0]
           };
 
-      console.log('📡 Enviando request al Gateway...', payload);
+      console.log('📡 Enviando request al backend local...', payload);
 
       const response = await fetch(`http://localhost:8000/api/auth/${endpoint}`, {
         method: 'POST',
@@ -66,7 +66,7 @@ export default function TestButtonPage() {
       }
     } catch (error) {
       console.error('❌ Error de conexión:', error);
-      alert('Error de conexión con el Gateway Maestro');
+      alert('Error de conexión con el backend local');
     } finally {
       setIsLoading(false);
     }

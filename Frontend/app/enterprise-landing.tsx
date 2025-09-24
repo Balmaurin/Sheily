@@ -126,7 +126,7 @@ export default function EnterpriseLandingPage() {
             transition={{ duration: 1, delay: 0.5 }}
           >
             Potenciado por <span className="text-cyan-400 font-semibold">Llama 3.2 Q8_0</span> • 
-            Gateway Maestro Unificado • Blockchain Solana • 
+            Servidor LLM local • Blockchain Solana •
             Sistema de Entrenamiento Personalizado
           </motion.p>
         </motion.div>

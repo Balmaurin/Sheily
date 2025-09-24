@@ -4,8 +4,6 @@
  */
 
 const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
 
 class LanguageModelService {
     constructor() {
@@ -71,13 +69,11 @@ class LanguageModelService {
 
             } catch (error) {
                 console.error(`❌ Error en intento ${attempt}:`, error.message);
-                
+
                 if (attempt === this.maxRetries) {
-                    // Si es el último intento, devolver respuesta de fallback
-                    return this.getFallbackResponse(prompt);
+                    throw new Error(`Servicio LLM no disponible: ${error.message}`);
                 }
-                
-                // Esperar antes del siguiente intento
+
                 await this.sleep(1000 * attempt);
             }
         }
@@ -117,24 +113,6 @@ class LanguageModelService {
                 error: error.message
             };
         }
-    }
-
-    /**
-     * Generar respuesta de fallback cuando el LLM no está disponible
-     * @param {string} prompt - Prompt original
-     * @returns {string} - Respuesta de fallback
-     */
-    getFallbackResponse(prompt) {
-        const fallbackResponses = [
-            "Lo siento, estoy experimentando dificultades técnicas temporales. Por favor, inténtalo de nuevo en unos momentos.",
-            "Disculpa, el servicio de IA está temporalmente no disponible. Estamos trabajando para restaurarlo pronto.",
-            "Perdón por las molestias. Mi sistema principal está en mantenimiento. Por favor, vuelve a intentarlo más tarde.",
-            "Lo siento, no puedo procesar tu solicitud en este momento debido a problemas técnicos temporales."
-        ];
-
-        const randomIndex = Math.floor(Math.random() * fallbackResponses.length);
-        console.log(`🔄 Usando respuesta de fallback`);
-        return fallbackResponses[randomIndex];
     }
 
     /**
@@ -186,7 +164,7 @@ class LanguageModelService {
 
         } catch (error) {
             console.error(`❌ Error procesando chat:`, error.message);
-            return this.getFallbackResponse("chat conversation");
+            throw new Error(`Servicio LLM no disponible: ${error.message}`);
         }
     }
 

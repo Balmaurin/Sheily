@@ -1,485 +1,682 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Plus, Save, Play, Target, Brain, Database, Zap } from "lucide-react";
+import React, { useEffect, useMemo, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Brain,
+  CheckCircle2,
+  ClipboardList,
+  Database,
+  Plus,
+  RefreshCw,
+  Shield,
+  Trash2,
+} from 'lucide-react';
 
-interface ExerciseTemplate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  estimatedTime: number; // minutos
-  maxLength: number; // caracteres máximo
-  minQualityScore: number; // 0-100
-  instructions: string;
-  examplePrompt: string;
-  tags: string[];
-  isActive: boolean;
-  datasetValue: number; // tokens por respuesta de calidad
-  totalSubmissions: number;
-  qualitySubmissions: number;
+import BranchExerciseService, {
+  BranchExercise,
+  BranchSummary,
+  CreateExercisePayload,
+  ExerciseType,
+} from '@/services/branchExerciseService';
+
+interface FormState {
+  scope: string;
+  level: number;
+  exerciseType: ExerciseType;
+  question: string;
+  correctAnswer: string;
+  explanation: string;
+  validationSource: string;
+  referenceUrl: string;
+  competency: string;
+  difficulty: string;
+  objective: string;
+  autoLowerScope: boolean;
 }
 
-interface ExerciseSubmission {
-  id: string;
-  userId: string;
-  exerciseId: string;
-  response: string;
-  qualityScore: number;
-  timestamp: Date;
-  metadata: {
-    responseLength: number;
-    processingTime: number;
-    modelUsed?: string;
-    tokensEarned: number;
-  };
-}
+const EXERCISE_TYPES: { value: ExerciseType; label: string }[] = [
+  { value: 'yes_no', label: 'Sí / No' },
+  { value: 'true_false', label: 'Verdadero / Falso' },
+  { value: 'multiple_choice', label: 'Opción múltiple' },
+];
 
-export function ExerciseCreator() {
-  const [templates, setTemplates] = useState<ExerciseTemplate[]>([]);
-  const [currentTemplate, setCurrentTemplate] = useState<Partial<ExerciseTemplate>>({
-    title: '',
-    description: '',
-    category: '',
-    difficulty: 'beginner',
-    estimatedTime: 5,
-    maxLength: 500,
-    minQualityScore: 90,
-    instructions: '',
-    examplePrompt: '',
-    tags: [],
-    isActive: true,
-    datasetValue: 10,
-    totalSubmissions: 0,
-    qualitySubmissions: 0
+const DIFFICULTIES = [
+  { value: 'standard', label: 'Estándar' },
+  { value: 'advanced', label: 'Avanzado' },
+  { value: 'expert', label: 'Experto' },
+];
+
+const DEFAULT_OPTIONS = ['', ''];
+
+export function ExerciseCreator(): JSX.Element {
+  const { toast } = useToast();
+  const [branches, setBranches] = useState<BranchSummary[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [loadingExercises, setLoadingExercises] = useState(false);
+  const [exercises, setExercises] = useState<BranchExercise[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [options, setOptions] = useState<string[]>(DEFAULT_OPTIONS);
+  const [correctOptionIndex, setCorrectOptionIndex] = useState<number>(0);
+
+  const [form, setForm] = useState<FormState>({
+    scope: '',
+    level: 1,
+    exerciseType: 'yes_no',
+    question: '',
+    correctAnswer: 'sí',
+    explanation: '',
+    validationSource: 'curriculum-team',
+    referenceUrl: '',
+    competency: '',
+    difficulty: 'standard',
+    objective: '',
+    autoLowerScope: true,
   });
-  const [newTag, setNewTag] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
 
-  // Cargar templates existentes
   useEffect(() => {
-    loadExerciseTemplates();
-  }, []);
+    const loadBranches = async () => {
+      setLoadingBranches(true);
+      try {
+        const [branchList, trainingBranches] = await Promise.all([
+          BranchExerciseService.listBranches(),
+          BranchExerciseService.getTrainingBranches().catch(() => []),
+        ]);
 
-  const loadExerciseTemplates = async () => {
-    try {
-      const response = await fetch('/api/exercises/templates');
-      if (response.ok) {
-        const data = await response.json();
-        setTemplates(data.templates || []);
+        const branchesWithStatus = branchList.map((branch) => {
+          const progressInfo = trainingBranches.find((item) => item.branch_key === branch.branch_key);
+          return {
+            ...branch,
+            status: progressInfo?.status ?? 'pending',
+            metrics: progressInfo?.metrics ?? branch.metrics,
+          };
+        });
+
+        setBranches(branchesWithStatus);
+        if (!selectedBranch && branchesWithStatus.length > 0) {
+          setSelectedBranch(branchesWithStatus[0].branch_key);
+        }
+      } catch (error) {
+        console.error('Error loading branches', error);
+        toast({
+          title: 'No se pudieron cargar las ramas',
+          description: 'Verifica tu conexión y vuelve a intentarlo.',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoadingBranches(false);
       }
-    } catch (error) {
-      console.error('Error loading templates:', error);
-    }
-  };
+    };
 
-  const createTemplate = async () => {
-    if (!currentTemplate.title || !currentTemplate.description || !currentTemplate.instructions) {
-      alert('Por favor completa todos los campos obligatorios');
+    loadBranches();
+  }, [toast]);
+
+  useEffect(() => {
+    if (!selectedBranch) {
+      setExercises([]);
       return;
     }
 
-    setIsCreating(true);
-    try {
-      const response = await fetch('/api/exercises/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...currentTemplate,
-          id: Date.now().toString(),
-          tags: currentTemplate.tags || []
-        })
-      });
-
-      if (response.ok) {
-        alert('Template creado exitosamente');
-        setCurrentTemplate({
-          title: '',
-          description: '',
-          category: '',
-          difficulty: 'beginner',
-          estimatedTime: 5,
-          maxLength: 500,
-          minQualityScore: 90,
-          instructions: '',
-          examplePrompt: '',
-          tags: [],
-          isActive: true,
-          datasetValue: 10,
-          totalSubmissions: 0,
-          qualitySubmissions: 0
+    const loadExercises = async () => {
+      setLoadingExercises(true);
+      try {
+        const response = await BranchExerciseService.listExercises(selectedBranch, { limit: 200 });
+        setExercises(response.exercises);
+      } catch (error) {
+        console.error('Error loading exercises', error);
+        toast({
+          title: 'No se pudieron obtener los ejercicios',
+          description: 'El servidor no respondió correctamente.',
+          variant: 'destructive',
         });
-        loadExerciseTemplates();
+      } finally {
+        setLoadingExercises(false);
       }
-    } catch (error) {
-      console.error('Error creating template:', error);
-      alert('Error al crear el template');
-    } finally {
-      setIsCreating(false);
-    }
-  };
+    };
 
-  const addTag = () => {
-    if (newTag.trim() && !currentTemplate.tags?.includes(newTag.trim())) {
-      setCurrentTemplate(prev => ({
-        ...prev,
-        tags: [...(prev.tags || []), newTag.trim()]
-      }));
-      setNewTag('');
-    }
-  };
+    loadExercises();
+  }, [selectedBranch, toast]);
 
-  const removeTag = (tagToRemove: string) => {
-    setCurrentTemplate(prev => ({
+  const availableScopes = useMemo(() => {
+    const scopes = new Set<string>();
+    exercises.forEach((exercise) => scopes.add(exercise.scope));
+    return Array.from(scopes).sort();
+  }, [exercises]);
+
+  const handleFormChange = (key: keyof FormState, value: string | number | boolean) => {
+    setForm((prev) => ({
       ...prev,
-      tags: prev.tags?.filter(tag => tag !== tagToRemove) || []
+      [key]: value,
     }));
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner': return 'bg-green-100 text-green-800';
-      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
-      case 'advanced': return 'bg-orange-100 text-orange-800';
-      case 'expert': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const handleExerciseTypeChange = (type: ExerciseType) => {
+    let correctAnswer = form.correctAnswer;
+    if (type === 'yes_no') {
+      correctAnswer = correctAnswer === 'no' ? 'no' : 'sí';
+    } else if (type === 'true_false') {
+      correctAnswer = correctAnswer === 'falso' ? 'falso' : 'verdadero';
+    } else {
+      correctAnswer = options[correctOptionIndex] || '';
+    }
+    setForm((prev) => ({ ...prev, exerciseType: type, correctAnswer }));
+  };
+
+  const updateOption = (index: number, value: string) => {
+    setOptions((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const addOption = () => {
+    setOptions((prev) => [...prev, '']);
+  };
+
+  const removeOption = (index: number) => {
+    setOptions((prev) => {
+      if (prev.length <= 2) {
+        toast({
+          title: 'Debes mantener al menos dos opciones',
+          variant: 'destructive',
+        });
+        return prev;
+      }
+      const next = prev.filter((_, idx) => idx !== index);
+      if (correctOptionIndex >= next.length) {
+        setCorrectOptionIndex(0);
+      }
+      return next;
+    });
+  };
+
+  const resetForm = () => {
+    setForm({
+      scope: '',
+      level: 1,
+      exerciseType: 'yes_no',
+      question: '',
+      correctAnswer: 'sí',
+      explanation: '',
+      validationSource: 'curriculum-team',
+      referenceUrl: '',
+      competency: '',
+      difficulty: 'standard',
+      objective: '',
+      autoLowerScope: true,
+    });
+    setOptions(DEFAULT_OPTIONS);
+    setCorrectOptionIndex(0);
+  };
+
+  const createExercise = async () => {
+    if (!selectedBranch) {
+      toast({ title: 'Selecciona una rama', variant: 'destructive' });
+      return;
+    }
+
+    const level = Number(form.level);
+    if (Number.isNaN(level) || level < 1 || level > 20) {
+      toast({
+        title: 'Nivel inválido',
+        description: 'Cada rama tiene 20 niveles; selecciona un valor entre 1 y 20.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const scopeValue = form.autoLowerScope ? form.scope.trim().toLowerCase() : form.scope.trim();
+    if (!scopeValue) {
+      toast({
+        title: 'El ámbito es obligatorio',
+        description: 'Define el ámbito concreto dentro de la rama para este ejercicio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const question = form.question.trim();
+    if (!question) {
+      toast({ title: 'La pregunta no puede estar vacía', variant: 'destructive' });
+      return;
+    }
+
+    let correctAnswer = form.correctAnswer.trim();
+    let optionsPayload: CreateExercisePayload['options'] | undefined;
+
+    if (form.exerciseType === 'yes_no') {
+      if (!['sí', 'no'].includes(correctAnswer.toLowerCase())) {
+        toast({ title: 'Selecciona una respuesta correcta válida (sí/no)', variant: 'destructive' });
+        return;
+      }
+      correctAnswer = correctAnswer.toLowerCase() === 'no' ? 'no' : 'sí';
+    } else if (form.exerciseType === 'true_false') {
+      if (!['verdadero', 'falso'].includes(correctAnswer.toLowerCase())) {
+        toast({
+          title: 'Selecciona una respuesta correcta válida (verdadero/falso)',
+          variant: 'destructive',
+        });
+        return;
+      }
+      correctAnswer = correctAnswer.toLowerCase() === 'falso' ? 'falso' : 'verdadero';
+    } else {
+      const sanitizedOptions = options.map((option) => option.trim()).filter((option) => option.length > 0);
+      if (sanitizedOptions.length < 2) {
+        toast({
+          title: 'Configura al menos dos opciones válidas',
+          description: 'Los ejercicios de opción múltiple requieren varias alternativas reales.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const resolvedIndex = Math.min(correctOptionIndex, sanitizedOptions.length - 1);
+      optionsPayload = sanitizedOptions;
+      correctAnswer = sanitizedOptions[resolvedIndex];
+    }
+
+    setSubmitting(true);
+    try {
+      await BranchExerciseService.createExercise(selectedBranch, {
+        scope: scopeValue,
+        level,
+        exercise_type: form.exerciseType,
+        question,
+        correct_answer: correctAnswer,
+        explanation: form.explanation.trim() || undefined,
+        validation_source: form.validationSource.trim() || undefined,
+        reference_url: form.referenceUrl.trim() || undefined,
+        competency: form.competency.trim() || undefined,
+        difficulty: form.difficulty,
+        objective: form.objective.trim() || undefined,
+        metadata: {
+          created_from: 'dashboard',
+          reviewer: form.validationSource.trim() || 'curriculum-team',
+          generated_at: new Date().toISOString(),
+        },
+        options: optionsPayload,
+      });
+
+      toast({
+        title: 'Ejercicio creado',
+        description: 'El ejercicio se registró correctamente en la base de datos.',
+      });
+
+      resetForm();
+      const response = await BranchExerciseService.listExercises(selectedBranch, { limit: 200 });
+      setExercises(response.exercises);
+    } catch (error) {
+      console.error('Error creating exercise', error);
+      toast({
+        title: 'No fue posible crear el ejercicio',
+        description: 'Verifica tus permisos o revisa los datos enviados.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const deleteExercise = async (exerciseId: number) => {
+    if (!selectedBranch) {
+      return;
+    }
+
+    try {
+      await BranchExerciseService.deleteExercise(selectedBranch, exerciseId);
+      toast({ title: 'Ejercicio eliminado', description: 'El registro se retiró del catálogo.' });
+      setExercises((prev) => prev.filter((exercise) => exercise.id !== exerciseId));
+    } catch (error) {
+      console.error('Error deleting exercise', error);
+      toast({
+        title: 'No se pudo eliminar el ejercicio',
+        description: 'Confirma tus permisos o vuelve a intentarlo.',
+        variant: 'destructive',
+      });
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Target className="h-6 w-6" />
-            Creador de Ejercicios de IA
+            <ClipboardList className="h-6 w-6" />
+            Gestión de ejercicios oficiales
           </h2>
-          <p className="text-muted-foreground">
-            Crea ejercicios que generen datasets valiosos para el entrenamiento de tu LLM
+          <p className="text-muted-foreground max-w-2xl">
+            Administra el banco de ejercicios reales de las 35 ramas. Cada registro se almacena en PostgreSQL y
+            alimenta la generación de datasets verificados para los flujos de entrenamiento LoRA.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5" />
           <span className="text-sm font-medium">
-            {templates.filter(t => t.isActive).length} ejercicios activos
+            {loadingExercises ? 'Cargando ejercicios…' : `${exercises.length} ejercicios cargados`}
           </span>
         </div>
       </div>
 
       <Tabs defaultValue="create" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="create">Crear Ejercicio</TabsTrigger>
-          <TabsTrigger value="manage">Gestionar Ejercicios</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="create">Crear ejercicio</TabsTrigger>
+          <TabsTrigger value="manage">Catálogo de rama</TabsTrigger>
         </TabsList>
 
         <TabsContent value="create" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Nuevo Ejercicio
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                <Brain className="h-5 w-5" />
+                Nuevo ejercicio por rama
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Información básica */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Título del ejercicio *</Label>
-                  <Input
-                    id="title"
-                    placeholder="Ej: Describe una escena futurista..."
-                    value={currentTemplate.title || ''}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, title: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Categoría *</Label>
-                  <Select value={currentTemplate.category} onValueChange={(value) => setCurrentTemplate(prev => ({ ...prev, category: value }))}>
+                  <Label>Rama</Label>
+                  <Select
+                    value={selectedBranch}
+                    onValueChange={(value) => setSelectedBranch(value)}
+                    disabled={loadingBranches}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecciona categoría" />
+                      <SelectValue placeholder="Selecciona una rama" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="creative">Creativo</SelectItem>
-                      <SelectItem value="technical">Técnico</SelectItem>
-                      <SelectItem value="analytical">Analítico</SelectItem>
-                      <SelectItem value="educational">Educativo</SelectItem>
-                      <SelectItem value="professional">Profesional</SelectItem>
-                      <SelectItem value="personal">Personal</SelectItem>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.branch_key} value={branch.branch_key}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{branch.name}</span>
+                            <span className="text-xs text-muted-foreground">{branch.domain}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Descripción *</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe qué debe hacer el usuario en este ejercicio..."
-                  value={currentTemplate.description || ''}
-                  onChange={(e) => setCurrentTemplate(prev => ({ ...prev, description: e.target.value }))}
-                />
-              </div>
-
-              {/* Configuración del ejercicio */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Dificultad</Label>
-                  <Select value={currentTemplate.difficulty} onValueChange={(value: any) => setCurrentTemplate(prev => ({ ...prev, difficulty: value }))}>
+                  <Label>Nivel (1-20)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={form.level}
+                    onChange={(event) => handleFormChange('level', Number(event.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ámbito dentro de la rama</Label>
+                  <Input
+                    value={form.scope}
+                    placeholder="Ejemplo: prompting avanzado"
+                    onChange={(event) => handleFormChange('scope', event.target.value)}
+                    list="exercise-scopes"
+                  />
+                  <datalist id="exercise-scopes">
+                    {availableScopes.map((scope) => (
+                      <option value={scope} key={scope} />
+                    ))}
+                  </datalist>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Switch
+                      id="auto-lower-scope"
+                      checked={form.autoLowerScope}
+                      onCheckedChange={(value) => handleFormChange('autoLowerScope', value)}
+                    />
+                    <Label htmlFor="auto-lower-scope">Normalizar ámbito en minúsculas</Label>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de ejercicio</Label>
+                  <Select value={form.exerciseType} onValueChange={(value) => handleExerciseTypeChange(value as ExerciseType)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="beginner">Principiante</SelectItem>
-                      <SelectItem value="intermediate">Intermedio</SelectItem>
-                      <SelectItem value="advanced">Avanzado</SelectItem>
-                      <SelectItem value="expert">Experto</SelectItem>
+                      {EXERCISE_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Tiempo estimado (min)</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="60"
-                    value={currentTemplate.estimatedTime || 5}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, estimatedTime: parseInt(e.target.value) || 5 }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Longitud máxima (chars)</Label>
-                  <Input
-                    type="number"
-                    min="50"
-                    max="5000"
-                    value={currentTemplate.maxLength || 500}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, maxLength: parseInt(e.target.value) || 500 }))}
-                  />
-                </div>
               </div>
 
-              {/* Puntaje mínimo y recompensa */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Puntaje mínimo de calidad (%)</Label>
-                  <Slider
-                    value={[currentTemplate.minQualityScore || 90]}
-                    onValueChange={(value) => setCurrentTemplate(prev => ({ ...prev, minQualityScore: value[0] }))}
-                    max={100}
-                    min={50}
-                    step={5}
-                    className="w-full"
-                  />
-                  <div className="text-sm text-muted-foreground text-center">
-                    {currentTemplate.minQualityScore || 90}%
+              <div className="space-y-2">
+                <Label>Pregunta</Label>
+                <Textarea
+                  rows={4}
+                  value={form.question}
+                  placeholder="Redacta una pregunta clara y contextualizada al nivel seleccionado"
+                  onChange={(event) => handleFormChange('question', event.target.value)}
+                />
+              </div>
+
+              {form.exerciseType === 'multiple_choice' ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Opciones de respuesta</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addOption}>
+                      <Plus className="h-4 w-4 mr-2" /> Añadir opción
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {options.map((option, index) => (
+                      <div className="flex items-center gap-2" key={`option-${index}`}>
+                        <Button
+                          type="button"
+                          variant={correctOptionIndex === index ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setCorrectOptionIndex(index)}
+                        >
+                          {String.fromCharCode(65 + index)}
+                        </Button>
+                        <Input
+                          value={option}
+                          placeholder={`Respuesta ${String.fromCharCode(65 + index)}`}
+                          onChange={(event) => updateOption(index, event.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive"
+                          onClick={() => removeOption(index)}
+                          disabled={options.length <= 2}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona la opción correcta pulsando el identificador A, B, C… El banco de datos registrará todas las
+                    alternativas.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Respuesta correcta</Label>
+                    <Select value={form.correctAnswer} onValueChange={(value) => handleFormChange('correctAnswer', value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {form.exerciseType === 'yes_no' ? (
+                          <>
+                            <SelectItem value="sí">Sí</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </>
+                        ) : (
+                          <>
+                            <SelectItem value="verdadero">Verdadero</SelectItem>
+                            <SelectItem value="falso">Falso</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dificultad</Label>
+                    <Select value={form.difficulty} onValueChange={(value) => handleFormChange('difficulty', value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DIFFICULTIES.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Tokens por respuesta de calidad</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={currentTemplate.datasetValue || 10}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, datasetValue: parseInt(e.target.value) || 10 }))}
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Instrucciones y ejemplo */}
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="instructions">Instrucciones para el usuario *</Label>
+                  <Label>Explicación</Label>
                   <Textarea
-                    id="instructions"
-                    placeholder="Explica claramente qué debe hacer el usuario..."
-                    rows={4}
-                    value={currentTemplate.instructions || ''}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, instructions: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="example">Prompt de ejemplo</Label>
-                  <Textarea
-                    id="example"
-                    placeholder="Ejemplo de cómo debería ser una buena respuesta..."
                     rows={3}
-                    value={currentTemplate.examplePrompt || ''}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, examplePrompt: e.target.value }))}
+                    value={form.explanation}
+                    placeholder="Describe por qué la respuesta es correcta. Esta explicación se mostrará tras la validación."
+                    onChange={(event) => handleFormChange('explanation', event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Objetivo pedagógico</Label>
+                  <Textarea
+                    rows={3}
+                    value={form.objective}
+                    placeholder="Resumen del resultado de aprendizaje asociado a este ejercicio"
+                    onChange={(event) => handleFormChange('objective', event.target.value)}
                   />
                 </div>
               </div>
 
-              {/* Tags */}
-              <div className="space-y-2">
-                <Label>Tags</Label>
-                <div className="flex gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Fuente de validación</Label>
                   <Input
-                    placeholder="Agregar tag..."
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                    value={form.validationSource}
+                    placeholder="Equipo o referencia que revisó el ejercicio"
+                    onChange={(event) => handleFormChange('validationSource', event.target.value)}
                   />
-                  <Button onClick={addTag} variant="outline">
-                    <Plus className="h-4 w-4" />
-                  </Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {currentTemplate.tags?.map(tag => (
-                    <Badge key={tag} variant="secondary" className="cursor-pointer"
-                           onClick={() => removeTag(tag)}>
-                      {tag} ×
-                    </Badge>
-                  ))}
+                <div className="space-y-2">
+                  <Label>URL de referencia (opcional)</Label>
+                  <Input
+                    value={form.referenceUrl}
+                    placeholder="https://"
+                    onChange={(event) => handleFormChange('referenceUrl', event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Competencia evaluada</Label>
+                  <Input
+                    value={form.competency}
+                    placeholder="Ejemplo: diseño de prompts seguros"
+                    onChange={(event) => handleFormChange('competency', event.target.value)}
+                  />
                 </div>
               </div>
 
-              {/* Estado del ejercicio */}
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={currentTemplate.isActive || false}
-                  onCheckedChange={(checked) => setCurrentTemplate(prev => ({ ...prev, isActive: checked }))}
-                />
-                <Label>Ejercicio activo</Label>
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={resetForm} disabled={submitting}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Limpiar formulario
+                </Button>
+                <Button type="button" onClick={createExercise} disabled={submitting || loadingExercises}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Registrar ejercicio
+                </Button>
               </div>
-
-              <Button onClick={createTemplate} disabled={isCreating} className="w-full">
-                {isCreating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Creando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Crear Ejercicio
-                  </>
-                )}
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="manage" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map(template => (
-              <Card key={template.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{template.title}</CardTitle>
-                    <Badge className={getDifficultyColor(template.difficulty)}>
-                      {template.difficulty}
-                    </Badge>
-                  </div>
-                  <CardDescription>{template.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Categoría:</span>
-                      <span className="font-medium">{template.category}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Calidad mín:</span>
-                      <span className="font-medium">{template.minQualityScore}%</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Tokens:</span>
-                      <span className="font-medium">{template.datasetValue}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Envíos:</span>
-                      <span className="font-medium">{template.totalSubmissions}</span>
-                    </div>
-                    {template.tags && template.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {template.tags.slice(0, 3).map(tag => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {template.tags.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{template.tags.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex gap-2 mt-4">
-                      <Button size="sm" variant="outline">
-                        <Play className="h-4 w-4 mr-1" />
-                        Probar
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        Editar
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="analytics" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                Analytics de Ejercicios
+                <Shield className="h-5 w-5" />
+                Ejercicios registrados en {selectedBranch || '—'}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{templates.length}</div>
-                    <div className="text-sm text-muted-foreground">Ejercicios creados</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      {templates.filter(t => t.isActive).length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Ejercicios activos</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      {templates.reduce((sum, t) => sum + t.totalSubmissions, 0)}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Total envíos</div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Distribución por dificultad</Label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {['beginner', 'intermediate', 'advanced', 'expert'].map(difficulty => {
-                      const count = templates.filter(t => t.difficulty === difficulty).length;
-                      const percentage = templates.length > 0 ? (count / templates.length) * 100 : 0;
-                      return (
-                        <div key={difficulty} className="text-center">
-                          <div className="text-lg font-bold">{count}</div>
-                          <div className="text-xs text-muted-foreground capitalize">{difficulty}</div>
-                          <Progress value={percentage} className="h-2 mt-1" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+              {loadingExercises ? (
+                <p className="text-sm text-muted-foreground">Cargando ejercicios…</p>
+              ) : exercises.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aún no hay ejercicios para esta rama y nivel. Genera contenido nuevo utilizando el formulario anterior.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ámbito</TableHead>
+                      <TableHead>Nivel</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Pregunta</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {exercises.map((exercise) => (
+                      <TableRow key={exercise.id}>
+                        <TableCell className="font-medium">{exercise.scope}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">Nivel {exercise.level}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge>{exercise.exercise_type}</Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate" title={exercise.question}>
+                          {exercise.question}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="text-destructive"
+                            onClick={() => deleteExercise(exercise.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableCaption>
+                    {exercises.length} ejercicios reales almacenados para esta rama.
+                  </TableCaption>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -487,3 +684,5 @@ export function ExerciseCreator() {
     </div>
   );
 }
+
+export default ExerciseCreator;
