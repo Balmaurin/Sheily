@@ -178,7 +178,6 @@ check_services() {
         "8000:Backend API"
         "8005:LLM Server"
         "5432:PostgreSQL"
-        "11434:Ollama"
     )
     
     for port_info in "${ports[@]}"; do

@@ -1,10 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from llama_cpp import Llama
+import logging
+import os
 import threading
 import time
-import logging
-from llm_branch_integrator import LLMBranchIntegrator
+from typing import Any, Dict, List, Optional, Tuple
+from uuid import uuid4
 
 # Configurar logging
 logging.basicConfig(
@@ -23,179 +25,216 @@ CORS(
 )
 
 # Configuración del LLM
-LLM_MODEL_REPO_ID = "bartowski/Llama-3.2-3B-Instruct-GGUF"
-LLM_MODEL_FILENAME = "Llama-3.2-3B-Instruct-Q8_0.gguf"
-LLM_N_CTX = 4096
-LLM_MAX_TOKENS = 2048  # Max tokens para la respuesta del LLM
-MAX_MESSAGES_IN_CONTEXT = 10  # Limitar el contexto a los últimos 10 mensajes
+MODEL_NAME = "Llama-3.2-3B-Instruct-Q8_0"
+DEFAULT_MODEL_PATH = os.path.abspath(
+    os.getenv(
+        "LLM_DEFAULT_MODEL_PATH",
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "models",
+            "Llama-3.2-3B-Instruct-Q8_0.gguf",
+        ),
+    )
+)
+LLM_MODEL_PATH = os.path.abspath(os.getenv("LLM_MODEL_PATH", DEFAULT_MODEL_PATH))
+LLM_N_CTX = int(os.getenv("LLM_CONTEXT_SIZE", "4096"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2048"))
+MAX_MESSAGES_IN_CONTEXT = int(os.getenv("LLM_MAX_HISTORY", "10"))
 
-llm_instance = None
-model_load_lock = threading.Lock()  # Para asegurar que el modelo se carga una sola vez
+llm_instance: Optional[Llama] = None
+model_load_lock = threading.Lock()
 is_loading = False
 
-# Integrador de ramas
-branch_integrator = None
 
-
-def load_llm_model():
-    global llm_instance, branch_integrator, is_loading
-    if llm_instance is None and not is_loading:
-        is_loading = True
-        logger.info(
-            f"Cargando modelo LLM: {LLM_MODEL_FILENAME} desde {LLM_MODEL_REPO_ID}..."
+def ensure_model_path_exists(path: str) -> None:
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"No se encontró el modelo local en {path}. "
+            "Configura la variable de entorno LLM_MODEL_PATH para apuntar al archivo GGUF."
         )
-        with model_load_lock:
-            try:
-                llm_instance = Llama.from_pretrained(
-                    repo_id=LLM_MODEL_REPO_ID,
-                    filename=LLM_MODEL_FILENAME,
-                    n_ctx=LLM_N_CTX,
-                    verbose=True,  # Mantener verbose para la carga inicial del servidor
-                )
-                logger.info("✅ Modelo LLM cargado exitosamente.")
 
-                # Inicializar integrador de ramas
-                logger.info("🔄 Inicializando integrador de ramas...")
-                branch_integrator = LLMBranchIntegrator(llm_instance)
-                logger.info("✅ Integrador de ramas inicializado.")
 
-            except Exception as e:
-                logger.error(f"❌ Error al cargar el modelo LLM: {e}")
-            finally:
-                is_loading = False
+def load_llm_model() -> Optional[Llama]:
+    """Cargar modelo Llama localmente (solo una vez)."""
+
+    global llm_instance, is_loading
+    if llm_instance is not None or is_loading:
+        return llm_instance
+
+    with model_load_lock:
+        if llm_instance is not None:
+            return llm_instance
+
+        is_loading = True
+        try:
+            ensure_model_path_exists(LLM_MODEL_PATH)
+            logger.info("🧠 Cargando modelo local desde %s", LLM_MODEL_PATH)
+            llm_instance = Llama(
+                model_path=LLM_MODEL_PATH,
+                n_ctx=LLM_N_CTX,
+                verbose=False,
+            )
+            logger.info("✅ Modelo LLM cargado correctamente: %s", MODEL_NAME)
+        except Exception:
+            # Asegurarse de que no se quede marcado como cargando
+            llm_instance = None
+            raise
+        finally:
+            is_loading = False
+
     return llm_instance
 
 
-# Cargar el modelo en un hilo separado al inicio
-threading.Thread(target=load_llm_model).start()
+# Cargar el modelo en un hilo separado al inicio para reducir latencia
+threading.Thread(target=load_llm_model, daemon=True).start()
+
+
+def _truncate_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if len(messages) <= MAX_MESSAGES_IN_CONTEXT:
+        return messages
+    return messages[-MAX_MESSAGES_IN_CONTEXT:]
+
+
+def _run_completion(
+    messages: List[Dict[str, str]],
+    temperature: float,
+    top_p: float,
+    max_tokens: int,
+) -> Tuple[str, Dict[str, Any], float]:
+    instance = load_llm_model()
+    if instance is None:
+        raise RuntimeError("Modelo LLM no disponible")
+
+    truncated = _truncate_messages(messages)
+    start_time = time.perf_counter()
+    result = instance.create_chat_completion(
+        messages=truncated,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        stream=False,
+    )
+    duration = time.perf_counter() - start_time
+    content = result["choices"][0]["message"]["content"]
+    usage = result.get("usage", {})
+    return content, usage, duration
+
+
+@app.route("/v1/chat/completions", methods=["POST"])
+def chat_completions():
+    data = request.get_json(force=True, silent=True) or {}
+    messages = data.get("messages")
+    if not messages:
+        return jsonify({"error": "Se requieren mensajes"}), 400
+
+    temperature = float(data.get("temperature", 0.7))
+    top_p = float(data.get("top_p", 0.95))
+    max_tokens = int(data.get("max_tokens", LLM_MAX_TOKENS))
+
+    try:
+        content, usage, duration = _run_completion(messages, temperature, top_p, max_tokens)
+    except Exception as exc:
+        logger.error("❌ Error generando respuesta: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+    response = {
+        "id": f"chatcmpl-{uuid4()}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": MODEL_NAME,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+        },
+        "processing_time": duration,
+    }
+    return jsonify(response)
 
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.json
-    messages = data.get("messages", [])
-
+    data = request.get_json(force=True, silent=True) or {}
+    messages = data.get("messages")
     if not messages:
-        return jsonify({"error": "No messages provided"}), 400
+        return jsonify({"error": "Se requieren mensajes"}), 400
 
-    # Asegurar que el modelo esté cargado
-    if llm_instance is None:
-        logger.warning("El modelo LLM aún no está cargado. Esperando...")
-        # Esperar un momento si el modelo aún se está cargando
-        time_waited = 0
-        while llm_instance is None and time_waited < 60:  # Esperar hasta 60 segundos
-            time.sleep(1)
-            time_waited += 1
-
-        if llm_instance is None:
-            return (
-                jsonify({"error": "Modelo LLM no disponible, intente más tarde."}),
-                503,
-            )
+    temperature = float(data.get("temperature", 0.7))
+    top_p = float(data.get("top_p", 0.95))
+    max_tokens = int(data.get("max_tokens", LLM_MAX_TOKENS))
 
     try:
-        # Mantener solo los últimos mensajes para el contexto
-        if len(messages) > MAX_MESSAGES_IN_CONTEXT:
-            messages = messages[len(messages) - MAX_MESSAGES_IN_CONTEXT :]
+        content, usage, duration = _run_completion(messages, temperature, top_p, max_tokens)
+        return jsonify(
+            {
+                "response": content,
+                "model": MODEL_NAME,
+                "processing_method": "llama_local",
+                "usage": {
+                    "prompt_tokens": usage.get("prompt_tokens"),
+                    "completion_tokens": usage.get("completion_tokens"),
+                    "total_tokens": usage.get("total_tokens"),
+                },
+                "processing_time": duration,
+            }
+        )
+    except Exception as exc:
+        logger.error("❌ Error al generar respuesta del LLM: %s", exc)
+        return jsonify({"error": str(exc)}), 500
 
-        # NUEVO: Usar el integrador de ramas si está disponible
-        if branch_integrator and branch_integrator.system_status["initialized"]:
-            logger.info("🎯 Usando sistema de ramas especializadas")
-            result = branch_integrator.process_query(messages)
 
-            # Devolver respuesta con metadatos del sistema de ramas
-            return jsonify(
+@app.route("/health", methods=["GET"])
+def health():
+    try:
+        current_instance = llm_instance or load_llm_model()
+    except Exception as exc:
+        logger.error("❌ Error al cargar el modelo para healthcheck: %s", exc)
+        return (
+            jsonify(
                 {
-                    "response": result.get("response", "Error en procesamiento"),
-                    "domain": result.get("domain", "general"),
-                    "domain_confidence": result.get("domain_confidence", 0.5),
-                    "processing_method": result.get("processing_method", "unknown"),
-                    "processing_time": result.get("processing_time", 0.0),
-                    "system_enhanced": True,
+                    "status": "error",
+                    "model": MODEL_NAME,
+                    "detail": str(exc),
                 }
-            )
-        else:
-            # Fallback al sistema original
-            logger.info("🔄 Usando Llama 3.2 base (sistema de ramas no disponible)")
+            ),
+            500,
+        )
 
-            response_chunks = []
-            full_response_content = ""
-
-            # Generar respuesta del chat en streaming
-            for chunk in llm_instance.create_chat_completion(
-                messages=messages, max_tokens=LLM_MAX_TOKENS, stream=True
-            ):
-                delta = chunk["choices"][0]["delta"]
-                if "content" in delta:
-                    response_chunks.append(delta["content"])
-                    full_response_content += delta["content"]
-
-            # Devolver la respuesta completa como un solo string
-            return jsonify(
-                {
-                    "response": full_response_content,
-                    "domain": "general",
-                    "domain_confidence": 0.5,
-                    "processing_method": "llama_base",
-                    "processing_time": 0.0,
-                    "system_enhanced": False,
-                }
-            )
-
-    except Exception as e:
-        logger.error(f"❌ Error al generar respuesta del LLM: {e}")
-        return jsonify({"error": f"Error del LLM: {e}"}), 500
+    status = "healthy" if current_instance is not None else ("loading" if is_loading else "unavailable")
+    return jsonify(
+        {
+            "status": status,
+            "model": MODEL_NAME,
+            "context_size": LLM_N_CTX,
+            "max_tokens": LLM_MAX_TOKENS,
+            "model_path": LLM_MODEL_PATH,
+        }
+    )
 
 
-@app.route("/system/status", methods=["GET"])
-def system_status():
-    """Obtener estado del sistema de ramas"""
-    try:
-        if branch_integrator:
-            status = branch_integrator.get_system_status()
-            return jsonify(status)
-        else:
-            return jsonify(
-                {
-                    "error": "Integrador de ramas no disponible",
-                    "llama_available": llm_instance is not None,
-                }
-            )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/system/domains", methods=["GET"])
-def available_domains():
-    """Obtener dominios disponibles"""
-    try:
-        if branch_integrator:
-            domains = branch_integrator.get_available_domains()
-            return jsonify({"domains": domains})
-        else:
-            return jsonify({"domains": ["general"]})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/system/branches", methods=["GET"])
-def branch_status():
-    """Obtener estado de las ramas"""
-    try:
-        if branch_integrator:
-            domain = request.args.get("domain")
-            status = branch_integrator.get_branch_status(domain)
-            return jsonify(status)
-        else:
-            return jsonify({"error": "Integrador de ramas no disponible"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route("/v1/models", methods=["GET"])
+def list_models():
+    return jsonify({
+        "object": "list",
+        "data": [
+            {
+                "id": MODEL_NAME,
+                "object": "model",
+                "owned_by": "sheily-local",
+            }
+        ],
+    })
 
 
 if __name__ == "__main__":
-    # Asegurarse de que el modelo se carga antes de iniciar el servidor Flask
-    # o al menos se inicia el hilo de carga
-    load_llm_model()  # Iniciar la carga si no se ha iniciado ya
-
-    logger.info("🚀 Iniciando servidor LLM en http://127.0.0.1:5000")
-    app.run(host="127.0.0.1", port=5000, debug=False)  # Desactivar debug en producción
+    load_llm_model()
+    logger.info("🚀 Iniciando servidor LLM en http://127.0.0.1:8005")
+    app.run(host="127.0.0.1", port=8005, debug=False)

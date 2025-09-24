@@ -1,31 +1,33 @@
 import axios from 'axios';
 import { toast } from "@/components/ui/use-toast";
 
-interface ChatResponse {
-  response: string;
-  model: string;
-  timestamp: number;
-}
-
 interface ChatRequestParams {
   prompt: string;
   max_length?: number;
   temperature?: number;
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-const SHEILY_GATEWAY_URL = 'http://localhost:8080'; // Gateway Sheily AI
-const LLM_SERVER_URL = 'http://localhost:8005'; // LLM Server directo (solo para emergencias)
+interface ChatResponsePayload {
+  message: string;
+  model_used: string;
+  response_time: number;
+  tokens_used: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+}
 
-// Endpoint correcto: Dashboard → Gateway Sheily AI → LLM Server
-const CHAT_ENDPOINT = `${SHEILY_GATEWAY_URL}/query`;
+const LLM_SERVER_URL =
+  process.env.NEXT_PUBLIC_LLM_SERVER_URL || 'http://localhost:8005';
+const CHAT_ENDPOINT = `${LLM_SERVER_URL}/v1/chat/completions`;
 
 export const chatService = {
   handleApiError(error: any, defaultMessage: string = "Error en la operación"): void {
     if (error.response) {
+      const data = error.response.data || {};
+      const detail = data.error || data.message || error.response.statusText || error.response.status;
       toast({
         title: "Error de Chat",
-        description: `${defaultMessage}: ${error.response.data?.message || error.response.status}`,
+        description: `${defaultMessage}: ${detail}`,
         variant: "destructive"
       });
     } else if (error.request) {
@@ -43,153 +45,161 @@ export const chatService = {
     }
   },
 
-  async sendMessage(params: ChatRequestParams): Promise<{
-    message: string;
-    model_used: string;
-    response_time: number;
-    tokens_used: number;
-  }> {
+  async sendMessage(params: ChatRequestParams): Promise<ChatResponsePayload> {
     try {
       const startTime = Date.now();
 
-      // Conectar con el Gateway Sheily AI que maneja el LLM
-      const response = await axios.post(CHAT_ENDPOINT, {
-        query: params.prompt,
-        domain: "general",
-        max_tokens: params.max_length || 500,
-        temperature: params.temperature || 0.7,
-        top_p: 0.9
-      }, {
-        timeout: 30000, // 30 segundos timeout
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.post(
+        CHAT_ENDPOINT,
+        {
+          model: 'Llama-3.2-3B-Instruct-Q8_0',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Eres Sheily AI, un asistente inteligente que responde directamente usando el servidor Llama local.',
+            },
+            { role: 'user', content: params.prompt },
+          ],
+          temperature: params.temperature ?? 0.7,
+          top_p: 0.95,
+          max_tokens: params.max_length ?? 500,
+          stream: false,
+        },
+        {
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
       const endTime = Date.now();
-      const responseTime = (endTime - startTime) / 1000;
+      const measuredTime = (endTime - startTime) / 1000;
 
-      // Verificar que tenemos una respuesta del gateway
-      if (!response.data || !response.data.response) {
-        throw new Error('El gateway Sheily AI no devolvió una respuesta válida');
+      const choice = response.data?.choices?.[0];
+      const message = choice?.message?.content?.trim();
+
+      if (!message) {
+        throw new Error('El servidor LLM local no devolvió una respuesta válida');
       }
 
-      console.log('✅ Respuesta del Gateway Sheily AI:', {
-        gateway: 'Sheily AI Gateway',
-        llm_model: response.data.model_used,
-        response_time: response.data.response_time,
-        confidence: response.data.confidence,
-        domain: response.data.domain,
-        tokens_used: response.data.tokens_used,
-        quality_score: response.data.quality_score
+      const usage = response.data?.usage || {};
+      const serverProcessing = typeof response.data?.processing_time === 'number' ? response.data.processing_time : null;
+      const responseTime = serverProcessing ?? measuredTime;
+      const promptTokens = typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : undefined;
+      const completionTokens = typeof usage.completion_tokens === 'number' ? usage.completion_tokens : undefined;
+      const tokensUsed = typeof usage.total_tokens === 'number' ? usage.total_tokens : Math.ceil(message.length / 4);
+
+      console.log('✅ Respuesta del servidor LLM local:', {
+        llm_model: response.data.model,
+        response_time: responseTime,
+        usage,
       });
 
-      // Retornar respuesta del gateway con métricas detalladas
       return {
-        message: response.data.response,
-        model_used: response.data.model_used || 'Llama-3.2-3B-Instruct-Q8_0',
-        response_time: response.data.response_time || responseTime,
-        tokens_used: response.data.tokens_used || Math.ceil(response.data.response.length / 4)
+        message,
+        model_used: response.data.model || 'Llama-3.2-3B-Instruct-Q8_0',
+        response_time: responseTime,
+        tokens_used: tokensUsed,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
       };
     } catch (error: any) {
-      console.error('❌ Error conectando con Gateway Sheily AI:', error);
+      console.error('❌ Error conectando con el servidor LLM local:', error);
 
-      // Manejar errores específicos del gateway
       if (error.response?.status === 503) {
-        chatService.handleApiError(error, "El servidor LLM no está disponible. Por favor, intenta más tarde.");
+        chatService.handleApiError(
+          error,
+          'El servidor LLM no está disponible. Por favor, intenta más tarde.',
+        );
       } else if (error.response?.status === 504) {
-        chatService.handleApiError(error, "El servidor tardó demasiado en responder. Por favor, intenta con una consulta más corta.");
+        chatService.handleApiError(
+          error,
+          'El servidor tardó demasiado en responder. Intenta con una consulta más corta.',
+        );
       } else if (error.code === 'ECONNREFUSED') {
-        chatService.handleApiError(error, "No se puede conectar con el Gateway Sheily AI. Verifica que esté ejecutándose.");
+        chatService.handleApiError(
+          error,
+          'No se puede conectar con el servidor LLM local. Verifica que esté ejecutándose.',
+        );
       } else {
-        chatService.handleApiError(error, "Error de conexión con el Gateway Sheily AI");
+        chatService.handleApiError(error, 'Error de conexión con el servidor LLM local');
       }
 
-      throw error; // No fallbacks - el gateway maneja todo
+      throw error;
     }
   },
 
   async checkModelHealth(): Promise<boolean> {
     try {
-      // Verificar el Gateway Sheily AI
-      const response = await axios.get(`${SHEILY_GATEWAY_URL}/health`);
-      const isHealthy = response.status === 200 && response.data.status !== 'degraded';
+      const response = await axios.get(`${LLM_SERVER_URL}/health`);
+      const isHealthy = response.status === 200;
 
-      console.log('🔍 Estado del Gateway Sheily AI:', {
+      console.log('🔍 Estado del servidor LLM local:', {
         status: response.data.status,
-        uptime: response.data.uptime,
-        requests_processed: response.data.requests_processed,
-        llm_connected: response.data.connections?.llm_server,
-        backend_connected: response.data.connections?.backend,
-        healthy: isHealthy
+        model: response.data.model,
+        healthy: isHealthy,
       });
 
       return isHealthy;
     } catch (error) {
-      console.error('❌ Gateway Sheily AI no disponible:', error);
-      chatService.handleApiError(error, "Gateway Sheily AI no disponible");
+      console.error('❌ Servidor LLM local no disponible:', error);
+      chatService.handleApiError(error, 'Servidor LLM local no disponible');
       return false;
     }
   },
 
   async getModelInfo() {
     try {
-      // Obtener información actual del gateway
-      const statusResponse = await axios.get(`${SHEILY_GATEWAY_URL}/status`);
+      const response = await axios.get(`${LLM_SERVER_URL}/v1/models`);
+      const model = response.data?.data?.[0]?.id || 'Llama-3.2-3B-Instruct-Q8_0';
 
       return {
-        name: "Sheily AI Gateway",
-        subtitle: "Sistema inteligente con Llama-3.2-3B-Instruct-Q8_0",
-        purpose: "Gateway inteligente que conecta el dashboard con el modelo Llama 3.2, proporcionando respuestas contextuales y de alta calidad a través de una arquitectura optimizada.",
+        name: 'Sheily AI LLM local',
+        subtitle: 'Asistente inteligente con Llama-3.2-3B-Instruct-Q8_0',
+        purpose:
+          'El dashboard se conecta directamente con el servidor Llama local para proporcionar respuestas en tiempo real sin pasarelas intermedias.',
         capabilities: [
-          "Procesamiento inteligente de consultas vía Gateway",
-          "Clasificación automática de dominios",
-          "Gestión optimizada de conexiones LLM",
-          "Métricas detalladas de rendimiento",
-          "Sistema de calidad de respuestas",
-          "Arquitectura de microservicios escalable"
+          'Respuestas conversacionales en español',
+          'Procesamiento directo de consultas del dashboard',
+          'Pipeline draft → critic → fix disponible desde el backend',
+          'Baja latencia al ejecutar en local',
         ],
-        backend_model: statusResponse.data.connections?.llm_server?.model || "Llama-3.2-3B-Instruct-Q8_0",
-        quantization: "Q8_0",
-        parameters: "3B parámetros",
-        memory: "~2.2GB VRAM",
-        context: "4096 tokens",
-        gateway_status: statusResponse.data.status,
-        connections: statusResponse.data.connections,
-        special_features: [
-          "Arquitectura Gateway optimizada",
-          "Conexión directa con LLM Server",
-          "Procesamiento inteligente de dominios",
-          "Métricas de calidad y rendimiento",
-          "Gestión automática de errores",
-          "Logging avanzado de consultas"
-        ]
+        backend_model: model,
+        quantization: 'Q8_0',
+        parameters: '3B parámetros',
+        memory: '~2.2GB VRAM',
+        context: '4096 tokens',
+        service_status: 'running',
+        restrictions: [
+          'Contexto limitado a 4096 tokens',
+          'Requiere que el servidor LLM local esté activo',
+          'Sin reintentos automáticos externos',
+        ],
       };
     } catch (error) {
-      console.error('Error obteniendo información del Gateway Sheily AI:', error);
+      console.error('Error obteniendo información del servidor LLM local:', error);
 
-      // Fallback con información básica si el gateway no está disponible
       return {
-        name: "Sheily AI Gateway",
-        subtitle: "Sistema inteligente con Llama-3.2-3B-Instruct-Q8_0",
-        purpose: "Gateway inteligente que conecta el dashboard con el modelo Llama 3.2",
+        name: 'Sheily AI LLM local',
+        subtitle: 'Asistente inteligente con Llama-3.2-3B-Instruct-Q8_0',
+        purpose:
+          'Conexión directa con el servidor Llama local para respuestas inmediatas.',
         capabilities: [
-          "Procesamiento inteligente de consultas",
-          "Clasificación automática de dominios",
-          "Métricas de rendimiento",
-          "Sistema de calidad de respuestas"
+          'Respuestas conversacionales en español',
+          'Procesamiento directo de consultas del dashboard',
         ],
-        backend_model: "Llama-3.2-3B-Instruct-Q8_0",
-        quantization: "Q8_0",
-        parameters: "3B parámetros",
-        memory: "~2.2GB VRAM",
-        context: "4096 tokens",
-        gateway_status: "unavailable",
-        special_features: [
-          "Arquitectura Gateway optimizada",
-          "Conexión con LLM Server",
-          "Gestión automática de errores"
-        ]
+        backend_model: 'Llama-3.2-3B-Instruct-Q8_0',
+        quantization: 'Q8_0',
+        parameters: '3B parámetros',
+        memory: '~2.2GB VRAM',
+        context: '4096 tokens',
+        service_status: 'unavailable',
+        restrictions: [
+          'Contexto limitado a 4096 tokens',
+          'Requiere que el servidor LLM local esté activo',
+        ],
       };
     }
   }

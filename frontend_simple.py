@@ -116,7 +116,7 @@ HTML_TEMPLATE = """
     <div class="container">
         <div class="header">
             <h1>🚀 Sheily AI Dashboard</h1>
-            <p>Sistema de IA con Llama 3.2 Q8_0 - Gateway Maestro Activo</p>
+            <p>Sistema de IA con Llama 3.2 Q8_0 - Servidor LLM local activo</p>
         </div>
         
         <div class="dashboard">
@@ -136,7 +136,7 @@ HTML_TEMPLATE = """
                 </div>
                 <div class="status">
                     <div class="status-dot status-green"></div>
-                    <span>AI System: http://localhost:8080</span>
+                    <span>Servidor LLM: http://localhost:8005</span>
                 </div>
                 <div class="status">
                     <div class="status-dot status-green"></div>
@@ -147,7 +147,7 @@ HTML_TEMPLATE = """
             <div class="panel">
                 <h3>🔗 Enlaces Rápidos</h3>
                 <p><a href="http://localhost:8000/docs" target="_blank" style="color: #87CEEB;">📚 API Documentation</a></p>
-                <p><a href="http://localhost:8080/docs" target="_blank" style="color: #87CEEB;">🤖 AI System Docs</a></p>
+                <p><a href="http://localhost:8005/docs" target="_blank" style="color: #87CEEB;">🤖 Documentación LLM</a></p>
                 <p><a href="http://localhost:8090/docs" target="_blank" style="color: #87CEEB;">⛓️ Blockchain Docs</a></p>
                 <p><a href="http://localhost:8000/api/health" target="_blank" style="color: #87CEEB;">💚 Health Check</a></p>
             </div>

@@ -41,12 +41,12 @@ Sistema completo de inteligencia artificial con especialización en **entrenamie
 - **Analytics Avanzados**: Métricas detalladas de rendimiento
 
 ### 🤖 **Sistema LLM Local Integrado**
-- **Modelo Local**: Llama 3.2 3B Instruct optimizado para SHEILY
-- **Servicio Ollama**: Inferencia local con Docker
-- **Cliente Unificado**: Compatible con Ollama y APIs OpenAI
+- **Modelo Local**: Llama‑3.2‑3B‑Instruct‑Q8_0 optimizado para SHEILY
+- **Servidor Flask**: Endpoint `/v1/chat/completions` compatible con la API de OpenAI
+- **Cliente Directo**: Integración nativa con el dashboard sin intermediarios
 - **Pipeline Mejorado**: Sistema draft → critic → fix para respuestas de alta calidad
 - **Integración Completa**: Orquestador con 35 ramas especializadas
-- **Configuración Flexible**: Soporte para múltiples modos de inferencia
+- **Operación Offline**: Inferencia y métricas ejecutadas 100 % en local
 
 ---
 
@@ -67,7 +67,7 @@ Sistema completo de inteligencia artificial con especialización en **entrenamie
 - **Rate Limiting**: Protección anti-abuso
 
 ### **IA y Machine Learning**
-- **Llama 3.1-8B-Instruct**: Modelo base de última generación
+- **Llama‑3.2‑3B‑Instruct‑Q8_0**: Modelo cuantizado residente en el servidor local
 - **Sistema de Evaluación**: Quality scoring inteligente
 - **Fine-tuning Pipeline**: Automatización completa
 - **Vector Embeddings**: Búsqueda semántica avanzada
@@ -217,15 +217,25 @@ HF_TOKEN=your-huggingface-token
 ### Configuración en 3 pasos:
 
 ```bash
-# 1. Configurar sistema LLM completo
-./scripts/setup_llm_complete.sh
+# 1. Instalar dependencias mínimas
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements-llm.txt
 
-# 2. Verificar instalación
-./scripts/test_llm_integration.py
+# 2. Definir la ruta del modelo GGUF
+export LLM_MODEL_PATH=/ruta/al/modelo/Llama-3.2-3B-Instruct-Q8_0.gguf
 
-# 3. Probar el sistema
-curl http://localhost:11434/api/generate \
-  -d '{"model":"sheily-llm","prompt":"Hola SHEILY, ¿cómo estás?"}'
+# 3. Iniciar el servidor Flask
+python backend/llm_server.py
+```
+
+Para validar la instalación:
+
+```bash
+curl http://127.0.0.1:8005/health
+curl http://127.0.0.1:8005/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"Hola SHEILY"}]}'
 ```
 
 ### Documentación del Sistema LLM:

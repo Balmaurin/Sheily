@@ -1,452 +1,404 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import {
-  Play,
-  Pause,
-  RotateCcw,
-  Send,
-  Clock,
-  Target,
-  Zap,
-  CheckCircle,
-  AlertCircle,
-  Trophy,
-  Brain,
-  Database
-} from "lucide-react";
+import React, { useEffect, useMemo, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/use-toast';
 
-interface ExerciseTemplate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  estimatedTime: number;
-  maxLength: number;
-  minQualityScore: number;
-  instructions: string;
-  examplePrompt: string;
-  tags: string[];
-  isActive: boolean;
-  datasetValue: number;
+import BranchExerciseService, {
+  BranchExercise,
+  BranchExercisesResponse,
+  BranchSummary,
+  ExerciseType,
+  AttemptResponse,
+} from '@/services/branchExerciseService';
+
+import { Brain, CheckCircle2, Clock, FileCheck2, GaugeCircle, Target } from 'lucide-react';
+
+interface AnswerState {
+  answer: string;
+  optionKey: string | null;
 }
 
-interface ExerciseSession {
-  id: string;
-  exerciseId: string;
-  startTime: Date;
-  endTime?: Date;
-  response: string;
-  qualityScore?: number;
-  status: 'in_progress' | 'completed' | 'submitted';
-  timeSpent: number;
-  tokensEarned: number;
-}
+const exerciseLabels: Record<ExerciseType, string> = {
+  yes_no: 'Sí / No',
+  true_false: 'Verdadero / Falso',
+  multiple_choice: 'Opción múltiple',
+};
 
-export function ExerciseRunner() {
-  const [currentExercise, setCurrentExercise] = useState<ExerciseTemplate | null>(null);
-  const [session, setSession] = useState<ExerciseSession | null>(null);
-  const [response, setResponse] = useState('');
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [qualityScore, setQualityScore] = useState<number | null>(null);
-  const [feedback, setFeedback] = useState<string>('');
-  const [availableExercises, setAvailableExercises] = useState<ExerciseTemplate[]>([]);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<Date | null>(null);
+export function ExerciseRunner(): JSX.Element {
+  const { toast } = useToast();
+  const [branches, setBranches] = useState<BranchSummary[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [exerciseData, setExerciseData] = useState<BranchExercisesResponse | null>(null);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [loadingExercises, setLoadingExercises] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [activeExercise, setActiveExercise] = useState<BranchExercise | null>(null);
+  const [answerState, setAnswerState] = useState<AnswerState>({ answer: '', optionKey: null });
+  const [attemptResult, setAttemptResult] = useState<AttemptResponse | null>(null);
 
-  // Cargar ejercicios disponibles
+  const [filters, setFilters] = useState({
+    scope: 'all',
+    exerciseType: 'all' as ExerciseType | 'all',
+    level: 'all',
+  });
+
   useEffect(() => {
-    loadAvailableExercises();
-  }, []);
-
-  // Timer para el ejercicio
-  useEffect(() => {
-    if (isRunning && session && currentExercise) {
-      intervalRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current!.getTime()) / 1000);
-        const remaining = Math.max(0, (currentExercise.estimatedTime * 60) - elapsed);
-        setTimeLeft(remaining);
-
-        if (remaining === 0) {
-          pauseExercise();
+    const loadBranches = async () => {
+      setLoadingBranches(true);
+      try {
+        const [branchList, trainingBranches] = await Promise.all([
+          BranchExerciseService.listBranches(true),
+          BranchExerciseService.getTrainingBranches().catch(() => []),
+        ]);
+        const merged = branchList.map((branch) => {
+          const trainingInfo = trainingBranches.find((item) => item.branch_key === branch.branch_key);
+          return {
+            ...branch,
+            status: trainingInfo?.status ?? branch.status ?? 'pending',
+            metrics: trainingInfo?.metrics ?? branch.metrics,
+          };
+        });
+        setBranches(merged);
+        if (!selectedBranch && merged.length > 0) {
+          setSelectedBranch(merged[0].branch_key);
         }
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      } catch (error) {
+        console.error('Error loading branches', error);
+        toast({ title: 'No se pudo cargar la lista de ramas', variant: 'destructive' });
+      } finally {
+        setLoadingBranches(false);
       }
     };
-  }, [isRunning, session, currentExercise]);
 
-  const loadAvailableExercises = async () => {
-    try {
-      const response = await fetch('/api/exercises/available');
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableExercises(data.exercises || []);
-      }
-    } catch (error) {
-      console.error('Error loading exercises:', error);
-    }
-  };
+    loadBranches();
+  }, [toast]);
 
-  const startExercise = (exercise: ExerciseTemplate) => {
-    const newSession: ExerciseSession = {
-      id: Date.now().toString(),
-      exerciseId: exercise.id,
-      startTime: new Date(),
-      response: '',
-      status: 'in_progress',
-      timeSpent: 0,
-      tokensEarned: 0
-    };
-
-    setCurrentExercise(exercise);
-    setSession(newSession);
-    setResponse('');
-    setTimeLeft(exercise.estimatedTime * 60);
-    setIsRunning(true);
-    setQualityScore(null);
-    setFeedback('');
-    startTimeRef.current = new Date();
-  };
-
-  const pauseExercise = () => {
-    setIsRunning(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-  };
-
-  const resumeExercise = () => {
-    setIsRunning(true);
-    startTimeRef.current = new Date();
-  };
-
-  const resetExercise = () => {
-    setCurrentExercise(null);
-    setSession(null);
-    setResponse('');
-    setTimeLeft(0);
-    setIsRunning(false);
-    setQualityScore(null);
-    setFeedback('');
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-  };
-
-  const submitExercise = async () => {
-    if (!session || !currentExercise || !response.trim()) {
-      alert('Por favor escribe una respuesta antes de enviar');
+  useEffect(() => {
+    if (!selectedBranch) {
+      setExerciseData(null);
+      setActiveExercise(null);
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const endTime = new Date();
-      const timeSpent = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000);
-
-      const submissionData = {
-        sessionId: session.id,
-        exerciseId: session.exerciseId,
-        response: response.trim(),
-        timeSpent,
-        responseLength: response.length
-      };
-
-      const submitResponse = await fetch('/api/exercises/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(submissionData)
-      });
-
-      if (submitResponse.ok) {
-        const result = await submitResponse.json();
-
-        setQualityScore(result.qualityScore);
-        setFeedback(result.feedback);
-
-        // Actualizar sesión
-        setSession(prev => prev ? {
-          ...prev,
-          status: 'submitted',
-          endTime,
-          timeSpent,
-          qualityScore: result.qualityScore,
-          tokensEarned: result.tokensEarned
-        } : null);
-
-        setIsRunning(false);
-
-        // Mostrar resultado
-        if (result.qualityScore >= currentExercise.minQualityScore) {
-          alert(`¡Excelente! Has ganado ${result.tokensEarned} tokens. Tu respuesta se agregó al dataset de entrenamiento.`);
-        } else {
-          alert(`Tu respuesta necesita mejorar. Puntaje: ${result.qualityScore}%. Inténtalo de nuevo para ganar tokens.`);
+    const loadExercises = async () => {
+      setLoadingExercises(true);
+      try {
+        const response = await BranchExerciseService.listExercises(selectedBranch, { limit: 200 });
+        setExerciseData(response);
+        if (response.exercises.length > 0) {
+          setActiveExercise(response.exercises[0]);
+          setAnswerState({ answer: '', optionKey: null });
+          setAttemptResult(null);
         }
+      } catch (error) {
+        console.error('Error loading exercises', error);
+        toast({
+          title: 'No se pudieron obtener ejercicios',
+          description: 'Revisa la conexión con el backend.',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoadingExercises(false);
       }
+    };
+
+    loadExercises();
+  }, [selectedBranch, toast]);
+
+  const filteredExercises = useMemo(() => {
+    if (!exerciseData) {
+      return [] as BranchExercise[];
+    }
+    return exerciseData.exercises.filter((exercise) => {
+      const scopeMatches =
+        filters.scope === 'all' || exercise.scope.toLowerCase() === filters.scope.toLowerCase();
+      const typeMatches = filters.exerciseType === 'all' || exercise.exercise_type === filters.exerciseType;
+      const levelMatches = filters.level === 'all' || exercise.level === Number(filters.level);
+      return scopeMatches && typeMatches && levelMatches;
+    });
+  }, [exerciseData, filters]);
+
+  const availableScopes = useMemo(() => {
+    if (!exerciseData) {
+      return [];
+    }
+    const scopes = new Set<string>();
+    exerciseData.exercises.forEach((exercise) => scopes.add(exercise.scope));
+    return Array.from(scopes).sort();
+  }, [exerciseData]);
+
+  const availableLevels = useMemo(() => {
+    if (!exerciseData) {
+      return [];
+    }
+    const levels = new Set<number>();
+    exerciseData.exercises.forEach((exercise) => levels.add(exercise.level));
+    return Array.from(levels).sort((a, b) => a - b);
+  }, [exerciseData]);
+
+  const setSelectedExercise = (exercise: BranchExercise) => {
+    setActiveExercise(exercise);
+    setAnswerState({ answer: '', optionKey: null });
+    setAttemptResult(null);
+  };
+
+  const selectBooleanAnswer = (value: string) => {
+    setAnswerState({ answer: value, optionKey: null });
+  };
+
+  const selectMultipleChoice = (option: string, optionKey: string | null) => {
+    setAnswerState({ answer: option, optionKey });
+  };
+
+  const submitAttempt = async () => {
+    if (!selectedBranch || !activeExercise) {
+      toast({ title: 'Selecciona un ejercicio válido', variant: 'destructive' });
+      return;
+    }
+
+    const trimmedAnswer = answerState.answer.trim();
+    if (!trimmedAnswer) {
+      toast({ title: 'Proporciona una respuesta antes de enviar', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await BranchExerciseService.submitAttempt(selectedBranch, activeExercise.id, {
+        answer: trimmedAnswer,
+        option_key: answerState.optionKey,
+      });
+      setAttemptResult(response);
+      toast({
+        title: response.evaluation.is_correct ? 'Respuesta validada' : 'Respuesta registrada',
+        description:
+          response.evaluation.is_correct
+            ? 'Has alcanzado el umbral de calidad del 95% y tus tokens fueron acreditados.'
+            : 'Seguiremos evaluando tus iteraciones para mejorar el dataset.',
+      });
     } catch (error) {
-      console.error('Error submitting exercise:', error);
-      alert('Error al enviar el ejercicio. Inténtalo de nuevo.');
+      console.error('Error sending attempt', error);
+      toast({ title: 'No se pudo validar la respuesta', variant: 'destructive' });
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner': return 'bg-green-100 text-green-800';
-      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
-      case 'advanced': return 'bg-orange-100 text-orange-800';
-      case 'expert': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const renderAnswerControls = () => {
+    if (!activeExercise) {
+      return null;
     }
-  };
 
-  const getProgressPercentage = () => {
-    if (!currentExercise) return 0;
-    const totalTime = currentExercise.estimatedTime * 60;
-    const elapsed = totalTime - timeLeft;
-    return Math.min(100, (elapsed / totalTime) * 100);
+    if (activeExercise.exercise_type === 'yes_no') {
+      return (
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant={answerState.answer.toLowerCase() === 'sí' ? 'default' : 'outline'}
+            onClick={() => selectBooleanAnswer('sí')}
+          >
+            Sí
+          </Button>
+          <Button
+            type="button"
+            variant={answerState.answer.toLowerCase() === 'no' ? 'default' : 'outline'}
+            onClick={() => selectBooleanAnswer('no')}
+          >
+            No
+          </Button>
+        </div>
+      );
+    }
+
+    if (activeExercise.exercise_type === 'true_false') {
+      return (
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant={answerState.answer.toLowerCase() === 'verdadero' ? 'default' : 'outline'}
+            onClick={() => selectBooleanAnswer('verdadero')}
+          >
+            Verdadero
+          </Button>
+          <Button
+            type="button"
+            variant={answerState.answer.toLowerCase() === 'falso' ? 'default' : 'outline'}
+            onClick={() => selectBooleanAnswer('falso')}
+          >
+            Falso
+          </Button>
+        </div>
+      );
+    }
+
+    const choiceOptions = activeExercise.options_detail?.length
+      ? activeExercise.options_detail.map((option) => ({
+          key: option.option_key,
+          content: option.content,
+        }))
+      : Array.isArray(activeExercise.options)
+        ? (activeExercise.options as string[]).map((content, index) => ({
+            key: String.fromCharCode(65 + index),
+            content,
+          }))
+        : [];
+
+    return (
+      <div className="grid gap-3">
+        {choiceOptions.map((option) => {
+          const isSelected = answerState.optionKey === option.key || answerState.answer === option.content;
+          return (
+            <Button
+              key={`${activeExercise.id}-${option.key ?? option.content}`}
+              type="button"
+              variant={isSelected ? 'default' : 'outline'}
+              className="justify-start"
+              onClick={() => selectMultipleChoice(option.content, option.key ?? null)}
+            >
+              <span className="font-semibold mr-3">{option.key}</span>
+              {option.content}
+            </Button>
+          );
+        })}
+        <Textarea
+          rows={3}
+          value={answerState.answer}
+          placeholder="Argumenta tu selección o redacta la respuesta en tus palabras"
+          onChange={(event) =>
+            setAnswerState({ answer: event.target.value, optionKey: answerState.optionKey })
+          }
+        />
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Brain className="h-6 w-6" />
-            Ejecutor de Ejercicios
+            <Target className="h-6 w-6" />
+            Resolver ejercicios verificados
           </h2>
-          <p className="text-muted-foreground">
-            Completa ejercicios de IA y gana tokens mientras generas datasets valiosos
+          <p className="text-muted-foreground max-w-2xl">
+            Elige una rama, filtra por ámbito o nivel y registra tus respuestas. Cada intento actualiza tu progreso y la
+            calidad del dataset para activar los entrenamientos LoRA.
           </p>
         </div>
-        {session && (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              <span className="font-mono">{formatTime(timeLeft)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
-              <span>{currentExercise?.datasetValue} tokens</span>
-            </div>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <GaugeCircle className="h-4 w-4" />
+          {attemptResult ? `Precisión alcanzada: ${attemptResult.progress.accuracy.toFixed(2)}%` : 'Sin intentos'}
+        </div>
       </div>
 
-      {!currentExercise ? (
-        // Lista de ejercicios disponibles
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Ejercicios Disponibles</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {availableExercises.filter(ex => ex.isActive).map(exercise => (
-              <Card key={exercise.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{exercise.title}</CardTitle>
-                    <Badge className={getDifficultyColor(exercise.difficulty)}>
-                      {exercise.difficulty}
-                    </Badge>
-                  </div>
-                  <CardContent className="pt-0">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {exercise.description}
-                    </p>
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {exercise.estimatedTime}min
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Target className="h-3 w-3" />
-                          {exercise.maxLength} chars
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Zap className="h-3 w-3" />
-                        {exercise.datasetValue} tokens
-                      </div>
-                    </div>
-                    {exercise.tags && exercise.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {exercise.tags.slice(0, 3).map(tag => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <Button
-                      onClick={() => startExercise(exercise)}
-                      className="w-full mt-3"
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      Comenzar Ejercicio
-                    </Button>
-                  </CardContent>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </div>
-      ) : (
-        // Ejercicio en ejecución
-        <div className="space-y-6">
+      <Tabs defaultValue="selection" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="selection">Seleccionar ejercicio</TabsTrigger>
+          <TabsTrigger value="solve" disabled={!activeExercise}>
+            Resolver
+          </TabsTrigger>
+          <TabsTrigger value="result" disabled={!attemptResult}>
+            Resultado
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="selection" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-xl">{currentExercise.title}</CardTitle>
-                  <Badge className={getDifficultyColor(currentExercise.difficulty)}>
-                    {currentExercise.difficulty}
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  {isRunning ? (
-                    <Button onClick={pauseExercise} variant="outline" size="sm">
-                      <Pause className="h-4 w-4 mr-1" />
-                      Pausar
-                    </Button>
-                  ) : (
-                    <Button onClick={resumeExercise} variant="outline" size="sm">
-                      <Play className="h-4 w-4 mr-1" />
-                      Reanudar
-                    </Button>
-                  )}
-                  <Button onClick={resetExercise} variant="outline" size="sm">
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    Reiniciar
-                  </Button>
-                </div>
-              </div>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                Selecciona rama y filtros
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Tiempo restante</Label>
-                <div className="flex items-center gap-4">
-                  <Progress value={getProgressPercentage()} className="flex-1" />
-                  <span className="font-mono text-lg font-bold">
-                    {formatTime(timeLeft)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-muted p-4 rounded-lg">
-                <h4 className="font-semibold mb-2">Instrucciones:</h4>
-                <p className="text-sm">{currentExercise.instructions}</p>
-              </div>
-
-              {currentExercise.examplePrompt && (
-                <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                  <h4 className="font-semibold mb-2 flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Ejemplo de respuesta esperada:
-                  </h4>
-                  <p className="text-sm italic">{currentExercise.examplePrompt}</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="response">
-                  Tu respuesta ({response.length}/{currentExercise.maxLength} caracteres)
-                </Label>
-                <Textarea
-                  id="response"
-                  placeholder="Escribe tu respuesta aquí..."
-                  value={response}
-                  onChange={(e) => {
-                    if (e.target.value.length <= currentExercise.maxLength) {
-                      setResponse(e.target.value);
-                    }
-                  }}
-                  rows={8}
-                  disabled={!isRunning || session?.status === 'submitted'}
-                />
-              </div>
-
-              {qualityScore !== null && (
-                <Alert className={qualityScore >= currentExercise.minQualityScore ? "border-green-500" : "border-red-500"}>
-                  <div className="flex items-center gap-2">
-                    {qualityScore >= currentExercise.minQualityScore ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <AlertDescription>
-                      <strong>Puntaje de calidad: {qualityScore}%</strong>
-                      {qualityScore >= currentExercise.minQualityScore ? (
-                        <span className="text-green-600 ml-2">
-                          ¡Felicitaciones! Has ganado {session?.tokensEarned} tokens.
-                          Tu respuesta se agregó al dataset de entrenamiento.
-                        </span>
-                      ) : (
-                        <span className="text-red-600 ml-2">
-                          Tu respuesta necesita mejorar para alcanzar el mínimo de {currentExercise.minQualityScore}%.
-                        </span>
-                      )}
-                    </AlertDescription>
-                  </div>
-                </Alert>
-              )}
-
-              {feedback && (
-                <Alert>
-                  <Brain className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Retroalimentación:</strong> {feedback}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="flex gap-4">
-                <Button
-                  onClick={submitExercise}
-                  disabled={!isRunning || !response.trim() || isSubmitting || session?.status === 'submitted'}
-                  className="flex-1"
+                <Label>Rama</Label>
+                <Select
+                  value={selectedBranch}
+                  onValueChange={(value) => setSelectedBranch(value)}
+                  disabled={loadingBranches}
                 >
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Evaluando...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar Respuesta
-                    </>
-                  )}
-                </Button>
-                <Button onClick={resetExercise} variant="outline">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Nuevo Ejercicio
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona una rama" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.branch_key} value={branch.branch_key}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{branch.name}</span>
+                          <span className="text-xs text-muted-foreground">{branch.domain}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ámbito</Label>
+                <Select
+                  value={filters.scope}
+                  onValueChange={(value) => setFilters((prev) => ({ ...prev, scope: value }))}
+                  disabled={!availableScopes.length}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {availableScopes.map((scope) => (
+                      <SelectItem key={scope} value={scope}>
+                        {scope}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de ejercicio</Label>
+                <Select
+                  value={filters.exerciseType}
+                  onValueChange={(value) => setFilters((prev) => ({ ...prev, exerciseType: value as ExerciseType | 'all' }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {Object.entries(exerciseLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Nivel</Label>
+                <Select
+                  value={filters.level}
+                  onValueChange={(value) => setFilters((prev) => ({ ...prev, level: value }))}
+                  disabled={!availableLevels.length}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {availableLevels.map((level) => (
+                      <SelectItem key={level} value={String(level)}>
+                        Nivel {level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -454,29 +406,126 @@ export function ExerciseRunner() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Información del Dataset
+                <FileCheck2 className="h-5 w-5" />
+                Ejercicios disponibles
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{currentExercise.datasetValue}</div>
-                  <div className="text-sm text-muted-foreground">Tokens por respuesta de calidad</div>
+            <CardContent className="space-y-3">
+              {loadingExercises ? (
+                <p className="text-sm text-muted-foreground">Cargando ejercicios…</p>
+              ) : filteredExercises.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No se encontraron ejercicios con los filtros actuales. Ajusta los criterios para visualizar más opciones.
+                </p>
+              ) : (
+                <div className="grid gap-3">
+                  {filteredExercises.map((exercise) => {
+                    const isActive = activeExercise?.id === exercise.id;
+                    return (
+                      <Button
+                        key={exercise.id}
+                        type="button"
+                        variant={isActive ? 'default' : 'outline'}
+                        className="justify-start text-left"
+                        onClick={() => setSelectedExercise(exercise)}
+                      >
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">Nivel {exercise.level}</Badge>
+                            <Badge>{exercise.exercise_type}</Badge>
+                            <Badge variant="outline">{exercise.scope}</Badge>
+                          </div>
+                          <p className="text-sm font-medium">{exercise.question}</p>
+                        </div>
+                      </Button>
+                    );
+                  })}
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{currentExercise.minQualityScore}%</div>
-                  <div className="text-sm text-muted-foreground">Puntaje mínimo requerido</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{currentExercise.totalSubmissions}</div>
-                  <div className="text-sm text-muted-foreground">Total de envíos</div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="solve" className="space-y-4">
+          {activeExercise ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  {exerciseLabels[activeExercise.exercise_type]} · Nivel {activeExercise.level} · {activeExercise.scope}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-base font-semibold">{activeExercise.question}</p>
+                {renderAnswerControls()}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Cada intento se valida localmente con el 95% como umbral de calidad.
+                  </span>
+                  <Button type="button" onClick={submitAttempt} disabled={submitting}>
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Enviar respuesta
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Alert>
+              <AlertDescription>Selecciona un ejercicio para comenzar.</AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+
+        <TabsContent value="result" className="space-y-4">
+          {attemptResult ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Resultado del intento #{attemptResult.attempt.id}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Precisión alcanzada</Label>
+                    <Badge variant={attemptResult.evaluation.is_correct ? 'default' : 'outline'}>
+                      {attemptResult.evaluation.accuracy}%
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tokens obtenidos</Label>
+                    <Badge>{attemptResult.tokens.granted}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Respuesta enviada</Label>
+                    <p className="text-sm">{attemptResult.evaluation.normalized_answer}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Respuesta oficial</Label>
+                    <p className="text-sm">{attemptResult.evaluation.correct_answer}</p>
+                  </div>
+                </div>
+                {attemptResult.evaluation.explanation ? (
+                  <Alert>
+                    <AlertDescription>{attemptResult.evaluation.explanation}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <div className="text-sm text-muted-foreground">
+                  Estado del progreso: {attemptResult.progress.verification_status}. Total de tokens para este nivel:{' '}
+                  {attemptResult.progress.tokens_awarded}.
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Alert>
+              <AlertDescription>Resuelve un ejercicio para ver el resultado.</AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
+
+export default ExerciseRunner;

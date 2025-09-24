@@ -1,297 +1,91 @@
-# Sistema LLM SHEILY AI
+# Servidor LLM Local SHEILY
 
-## Descripción
+Este documento describe la puesta en marcha del servicio LLM local utilizado por el dashboard de SHEILY. El servicio expone una API compatible con OpenAI utilizando el modelo cuantizado **Llama-3.2-3B-Instruct-Q8_0** cargado con `llama_cpp`.
 
-Sistema de inferencia LLM local integrado con el orquestador SHEILY AI. Utiliza Ollama con el modelo Llama 3.2 3B Instruct para proporcionar respuestas de alta calidad en español.
+## Arquitectura
 
-## Características
+- **Servidor HTTP**: `backend/llm_server.py` (Flask + CORS)
+- **Modelo**: archivo GGUF ubicado por defecto en `models/Llama-3.2-3B-Instruct-Q8_0.gguf`
+- **Cliente**: `backend/llm_client.py`, consumido por el backend Node y los scripts de integración
+- **Punto de acceso**: `http://127.0.0.1:8005/v1/chat/completions`
 
-- **Modelo Local**: Llama 3.2 3B Instruct optimizado para SHEILY
-- **Integración Completa**: Cliente unificado compatible con Ollama y APIs OpenAI
-- **Pipeline Mejorado**: Sistema draft → critic → fix para respuestas de alta calidad
-- **Configuración Flexible**: Soporte para múltiples modos de inferencia
-- **Monitoreo**: Health checks y métricas de rendimiento
+Todo el procesamiento ocurre en la máquina local; no intervienen servicios de Ollama, Hugging Face Hub ni endpoints remotos.
 
-## Estructura del Sistema
+## Requisitos previos
 
-```
-llm/
-├── Modelfile                    # Configuración del modelo SHEILY
-├── docker-compose.llm.yml      # Compose para servicio Ollama
-└── models/                     # Directorio para modelos GGUF (opcional)
+- Python 3.10 o superior
+- Paquetes `flask`, `flask_cors` y `llama_cpp_python`
+- Archivo GGUF del modelo Llama‑3.2‑3B‑Instruct cuantizado en Q8_0
 
-scripts/
-└── run_llm_ollama.sh          # Script de instalación y configuración
-
-backend/
-└── llm_client.py              # Cliente unificado LLM
-```
-
-## Instalación Rápida
-
-### Prerrequisitos
-
-- Docker y docker-compose instalados
-- Al menos 4GB de RAM disponible
-- Conexión a internet para descargar el modelo
-
-### Paso 1: Levantar el Servicio LLM
+Instalación de dependencias mínimas:
 
 ```bash
-# Ejecutar script de instalación
-./scripts/run_llm_ollama.sh
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements-llm.txt
 ```
 
-Este script:
-- ✅ Verifica que Docker esté disponible
-- 🐳 Levanta el contenedor Ollama
-- 📥 Descarga el modelo base llama3.2:3b-instruct
-- 🔧 Crea el modelo personalizado sheily-llm
-- 🧪 Prueba el modelo con una consulta de ejemplo
+> El archivo `backend/requirements-llm.txt` contiene únicamente las dependencias necesarias para ejecutar el servidor.
 
-### Paso 2: Verificar Instalación
+## Configuración del modelo
+
+El servidor busca el modelo en la ruta indicada por la variable de entorno `LLM_MODEL_PATH`. Si no se define, utilizará `models/Llama-3.2-3B-Instruct-Q8_0.gguf` relativa al repositorio.
 
 ```bash
-# Verificar que el servicio esté funcionando
-curl http://localhost:11434/api/tags
-
-# Probar el modelo SHEILY
-curl http://localhost:11434/api/generate \
-  -d '{"model":"sheily-llm","prompt":"Hola, ¿cómo estás?","stream":false}'
+export LLM_MODEL_PATH="/ruta/absoluta/Llama-3.2-3B-Instruct-Q8_0.gguf"
+export LLM_CONTEXT_SIZE=4096       # opcional
+export LLM_MAX_TOKENS=2048         # opcional
+export LLM_MAX_HISTORY=10          # opcional
 ```
 
-## Configuración
-
-### Variables de Entorno
-
-Edita `backend/config.env`:
-
-```env
-# Configuración del cliente LLM
-LLM_MODE=ollama                    # ollama | openai
-LLM_BASE_URL=http://localhost:11434
-LLM_MODEL_NAME=sheily-llm
-LLM_TIMEOUT=60
-LLM_MAX_RETRIES=3
-```
-
-### Modos de Operación
-
-#### Modo Ollama (Recomendado)
-```env
-LLM_MODE=ollama
-LLM_BASE_URL=http://localhost:11434
-```
-
-#### Modo OpenAI-Compatible
-```env
-LLM_MODE=openai
-LLM_BASE_URL=http://localhost:8001/v1  # vLLM, TGI, etc.
-```
-
-## Uso del Cliente LLM
-
-### Uso Básico
-
-```python
-from backend.llm_client import get_llm_client
-
-# Obtener cliente
-client = get_llm_client()
-
-# Chat simple
-messages = [
-    {"role": "user", "content": "Explica qué es la inteligencia artificial"}
-]
-response = client.llm_chat(messages)
-print(response)
-```
-
-### Pipeline Mejorado (draft → critic → fix)
-
-```python
-# Usar pipeline completo para respuestas de alta calidad
-result = client.process_pipeline(
-    query="Dame un plan de seguridad informática en 5 pasos",
-    context="Para una empresa de 50 empleados"
-)
-
-print("Respuesta final:", result['final_response'])
-print("Tiempo de procesamiento:", result['processing_time'])
-```
-
-### Verificación de Estado
-
-```python
-# Verificar salud del servicio
-health = client.health_check()
-print(f"Estado: {health['status']}")
-print(f"Modelo disponible: {health['model_available']}")
-```
-
-## Integración con el Orquestador
-
-El cliente LLM está integrado automáticamente en el orquestador principal:
-
-```python
-from modules.orchestrator.main_orchestrator import MainOrchestrator
-
-# El orquestador usa automáticamente el cliente LLM
-orchestrator = MainOrchestrator()
-response = orchestrator.process_query("¿Cómo optimizar una base de datos?")
-
-# Verificar estado del LLM
-llm_status = orchestrator.get_llm_status()
-```
-
-## Comandos Útiles
-
-### Gestión del Servicio
+## Puesta en marcha
 
 ```bash
-# Ver modelos disponibles
-docker exec sheily-llm-ollama ollama list
-
-# Ver logs del servicio
-docker logs sheily-llm-ollama
-
-# Parar el servicio
-docker-compose -f llm/docker-compose.llm.yml down
-
-# Reiniciar el servicio
-docker-compose -f llm/docker-compose.llm.yml restart
+source .venv/bin/activate
+python backend/llm_server.py
 ```
 
-### Pruebas de Rendimiento
+El servicio escuchará en `http://127.0.0.1:8005`. Durante el arranque se carga el modelo una sola vez y se mantiene en memoria para futuras peticiones.
+
+## Endpoints disponibles
+
+- `GET /health`: devuelve el estado del modelo, tamaño de contexto y ruta actual.
+- `GET /v1/models`: lista el identificador del modelo activo.
+- `POST /v1/chat/completions`: compatible con el formato de OpenAI para peticiones de chat.
+- `POST /chat`: alternativa simplificada empleada por scripts internos.
+
+### Ejemplo de petición
 
 ```bash
-# Probar con diferentes tipos de consultas
-curl http://localhost:11434/api/generate \
-  -d '{"model":"sheily-llm","prompt":"Dame un plan de test de seguridad en 5 pasos","stream":false}'
-
-curl http://localhost:11434/api/generate \
-  -d '{"model":"sheily-llm","prompt":"Explica el algoritmo de ordenamiento quicksort","stream":false}'
+curl http://127.0.0.1:8005/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+        "messages": [
+          {"role": "system", "content": "Eres un asistente experto."},
+          {"role": "user", "content": "Explica el algoritmo de Dijkstra"}
+        ],
+        "max_tokens": 512,
+        "temperature": 0.7
+      }'
 ```
 
-## Monitoreo y Logs
+## Cliente de referencia
 
-### Logs del Sistema
+El backend Node utiliza `backend/llm_client.py` como wrapper Python para pruebas y utilidades. El cliente expone los métodos:
 
-```bash
-# Logs del contenedor Ollama
-docker logs sheily-llm-ollama -f
+- `health_check()`
+- `chat(messages)`
+- `process_pipeline(query, context)`
 
-# Logs del orquestador
-tail -f backend/logs/orchestrator.log
-```
+Todos ellos interactúan exclusivamente con el servidor local en `http://127.0.0.1:8005`.
 
-### Métricas de Rendimiento
+## Supervisión y resolución de problemas
 
-El sistema registra automáticamente:
-- Tiempo de respuesta por consulta
-- Uso de memoria del modelo
-- Errores y fallbacks
-- Métricas del pipeline draft → critic → fix
+- Verifica los logs del servidor para comprobar la carga correcta del modelo.
+- Si el archivo GGUF no existe, el servidor devolverá un error 500 y lo indicará en `/health`.
+- Ajusta `LLM_CONTEXT_SIZE` y `LLM_MAX_TOKENS` según los recursos disponibles.
 
-## Solución de Problemas
+## Integración con el dashboard
 
-### Error: "Docker no está instalado"
-```bash
-# Instalar Docker (Ubuntu/Debian)
-sudo apt update
-sudo apt install docker.io docker-compose
-sudo systemctl start docker
-sudo usermod -aG docker $USER
-```
+El frontend consume los endpoints expuestos por el backend Node, que a su vez delega todas las respuestas en este servidor local. No existen rutas alternativas ni sistemas de respaldo: cualquier error en el modelo se propagará al usuario para mantener la transparencia del sistema.
 
-### Error: "Modelo no disponible"
-```bash
-# Verificar que el modelo se creó correctamente
-docker exec sheily-llm-ollama ollama list
-
-# Recrear el modelo si es necesario
-docker exec -w /workspace sheily-llm-ollama ollama create sheily-llm -f Modelfile
-```
-
-### Error: "Servicio no responde"
-```bash
-# Verificar estado del contenedor
-docker ps | grep ollama
-
-# Reiniciar el servicio
-docker-compose -f llm/docker-compose.llm.yml restart
-```
-
-### Error: "Memoria insuficiente"
-```bash
-# Verificar uso de memoria
-docker stats sheily-llm-ollama
-
-# Ajustar límites en docker-compose.llm.yml
-# memory: 6G  # Reducir si es necesario
-```
-
-## Personalización del Modelo
-
-### Modificar el System Prompt
-
-Edita `llm/Modelfile`:
-
-```
-SYSTEM Eres SHEILY, especializado en [tu dominio específico]. 
-[Personalizar comportamiento y personalidad]
-```
-
-### Ajustar Parámetros
-
-```
-PARAMETER temperature 0.2      # Creatividad (0.0-1.0)
-PARAMETER num_ctx 8192        # Contexto máximo
-PARAMETER top_p 0.95          # Núcleo de muestreo
-PARAMETER top_k 50            # Muestreo top-k
-```
-
-### Recrear el Modelo
-
-```bash
-# Después de modificar Modelfile
-docker exec -w /workspace sheily-llm-ollama ollama create sheily-llm -f Modelfile
-```
-
-## Opciones Avanzadas
-
-### Usar vLLM (OpenAI-Compatible)
-
-Para mayor rendimiento y compatibilidad con APIs:
-
-```bash
-# Instalar vLLM
-pip install vllm
-
-# Levantar servidor vLLM
-python -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Llama-3.2-3B-Instruct \
-  --port 8001
-```
-
-### Usar llama.cpp (CPU Optimizado)
-
-```bash
-# Descargar GGUF
-wget https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
-
-# Servir con llama.cpp
-./llama-server -m Llama-3.2-3B-Instruct-Q4_K_M.gguf --port 8080
-```
-
-## Soporte
-
-Para problemas o preguntas:
-1. Revisar los logs del sistema
-2. Verificar la configuración de variables de entorno
-3. Comprobar que Docker esté funcionando correctamente
-4. Consultar la documentación del orquestador en `docs/ORCHESTRATOR_GUIDE.md`
-
----
-
-**¡Sistema LLM SHEILY listo para usar!** 🚀

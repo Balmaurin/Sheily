@@ -15,7 +15,7 @@ from typing import List, Dict
 class BranchIntegrationTester:
     """Tester para el sistema de ramas integrado"""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:5000"):
+    def __init__(self, base_url: str = "http://127.0.0.1:8005"):
         self.base_url = base_url
         self.test_results = []
 

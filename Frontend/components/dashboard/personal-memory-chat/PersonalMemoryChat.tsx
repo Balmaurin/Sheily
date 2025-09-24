@@ -504,7 +504,7 @@ export function PersonalMemoryChat() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Search className="h-5 w-5" />
-                  Resultados de búsqueda: "{searchQuery}"
+                  Resultados de búsqueda: &quot;{searchQuery}&quot;
                 </CardTitle>
               </CardHeader>
               <CardContent>
